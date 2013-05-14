@@ -1,0 +1,8 @@
+sudo apt-get install git-core
+git config --global user.name "Murad Banaji"
+git config --global user.email "murad.banaji@port.ac.uk"
+
+git init
+git add Makefile
+git commit -m 'testcommit'
+git push gitolite@reaction-networks.net:injmat master

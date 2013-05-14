@@ -1,0 +1,3 @@
+To install GINAC I used
+
+sudo apt-get install libginac-dev*
