@@ -1,4 +1,4 @@
-/* Copyright (C) 2010, Murad Banaji
+/* Copyright (C) 2013, Murad Banaji
  *
  * This file is part of QUALMAT
  *
@@ -22,9 +22,7 @@
 
  */
 
-
 #include "crn.h"
-
 
 int main(int argc, char *argv[])
 {
