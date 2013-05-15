@@ -33,7 +33,7 @@ int isinlist(int i, int lst[], int tot);
 int **submatgen(int **imat, int n, int m, int *i1, int *i2, int dim);
 int **allcombsgen(int n, int n1);
 int isSSD2(int **imat, int n, int m);
-int isSSD1(int **imat, int n, int m, int q);
+int isSSD1(int **imat, int n, int m, bool allm, int q);
 int isSSD(int **mat, int n, int m, int q);
 int isonlyspace(char *s);
 
@@ -84,7 +84,7 @@ int freearraydat(char **array, int lim);
 int addv1(int k, char *s, char ***t);
 int isinarray(char *v[], int numv, char *s);
 int getallreacs(char *str, int ***imat1, int ***imat2, int ***imat3, int ***imat4, char ***chems, int *n, int *m, int *cols3, int *allrev, int *allgood);
-int analysereacs(const char fname[], int q);
+int analysereacs(const char fname[], int q, bool htmlswitch);
 int fixedminorcompat(int **imat1, int **imat2, int n, int m, int *vec1, int *vec2, int k);
 int allminorsigns(int **imat1, int **imat2, int n, int m, int q);
 int genMAXMAreacs(char *fname, int **imat1, int **imat2, int n, int m);
@@ -116,3 +116,5 @@ int findbad(int ** lists, int numlists, int *rowset, int latestcol, int level, i
 ex intpairtopoly(int *l1, int cf1, int n1, int *l2, int cf2, int n2);
 void ifree_l(int **imat, long n);
 int **cpmat(int **mat, int n, int m);
+matrix imattoexmat(int **A, int n, int m);
+int matrank(int **A, int n, int m);

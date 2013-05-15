@@ -28,13 +28,24 @@ int main(int argc, char *argv[])
 {
   int q=1; // q=1 is quick, q=0 is slow but more info
   if(argc<2){
-    fprintf(stderr, "No data file supplied, using default file \"datfiles/defreac\".\n\n");
-    analysereacs("datfiles/defreac", q);
+    fprintf(stderr, "ERROR: No data file supplied.\n\n");
   }
-  else
-    analysereacs(argv[1], q); // quick
+  else if(strcmp(argv[1], "--html")==0){
+    if(argc<3){
+      fprintf(stderr, "ERROR: No data file supplied.\n\n");
+    }
+    else
+      analysereacs(argv[2], q, 1);
+  }
+  else{
+    if(argc==2)
+      analysereacs(argv[1], q, 0);
+    else if(strcmp(argv[2], "--html")==0)
+      analysereacs(argv[1], q, 1);
+    else
+      analysereacs(argv[1], q, 0);
+    return 0;
 
-  return 0;
-
+  }
 }
 
