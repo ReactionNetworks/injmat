@@ -1,4 +1,4 @@
-/* Copyright (C) 2010-2012, Murad Banaji
+/* Copyright (C) 2010-2013, Murad Banaji
  *
  * This file is part of QUALMAT
  *
@@ -71,7 +71,51 @@ int unsterm2(int **imat, int n, int m, int *vec1, int *tm, int k){
   return tot;
 }
 
+/* Check if a minor is sign singular only */
+/* Everything else returns failure */
 
+int minorisSS(int **imat, int n, int m, int *vec1, int *vec2, int k, unsigned long fk, int **pms){
+  unsigned long i;
+  /* worth checking for a row or column of zeros first */
+  if(minorhas0rc(imat, n, m, vec1, vec2, k))
+    return 1;
+  for(i=0;i<fk;i++){
+    if(unsterm1(imat,n,m,vec1,pms[i],k)) /* nonzero term */
+      return 0;
+  }
+  return 1;
+}
+
+/* like minorisSS except doesn't first compute */
+/* all the permutations, so should avoid memory failure */
+
+int minorisSS2(int **imat, int n, int m, int *vec1, int *vec2, int k, unsigned long fk){
+  int *vec;
+  int *veclr;
+  int i, par=1, flag=1;
+  unsigned long t=0;
+
+  /* worth checking for a row or column of zeros first */
+  if(minorhas0rc(imat, n, m, vec1, vec2, k))
+    return 1;
+
+  vec=(int *)malloc((size_t) ((n)*sizeof(int)));
+  veclr=(int *)malloc((size_t) ((n)*sizeof(int)));
+
+  for(i=0;i<k;i++){vec[i]=vec2[i];veclr[i]=-1;}
+
+  while(flag){
+    if(unsterm1(imat, n, m, vec1, vec,k)) /* nonzero term */
+      return 0;
+    flag=nextperm(&vec, &veclr, &par, k);
+    if(t%1000000==0){
+      fprintf(stderr, "%d percent complete\n", (int)(((double)t)/((double)fk)*100));
+    }
+    t++;
+  }
+  free((char *) vec);free((char *) veclr);
+  return 1;
+}
 
 /* check if the k X k minor of n X m matrix imat indexed by the pair */
 /* (vec1, vec2) is sign nonsingular or sign singular */
@@ -124,16 +168,17 @@ int minorisSNSSS1(int **imat, int n, int m, int *vec1, int *vec2, int k, unsigne
   return 1;
 }
 
+
+
 /* like minorisSNSSS except doesn't first compute */
 /* all the permutations, so should avoid memory failure */
 
-int minorisSNSSS2(int **imat, int n, int m, int *vec1, int *vec2, int k){
+int minorisSNSSS2(int **imat, int n, int m, int *vec1, int *vec2, int k, unsigned long fk){
   int tmp, tm1=0; 
   int *vec;
   int *veclr;
   int i, par=1, flag=1;
   unsigned long t=0;
-  unsigned long fk=factorial(k);
 
   /* worth checking for a row or column of zeros first */
 
@@ -255,6 +300,74 @@ int matrixisSNSSS(int **imat, int n){
   }
   return retval;
 
+}
+
+// is column k of matrix mat (with n rows) equal or plus/minus an earlier column?
+
+bool eqorminus(int **mat, int n, int k){
+  int i=0,j;
+  int flgminus=1;
+  int flg=1;
+  if(k==0)
+    return 0;
+
+  for(j=0;j<k;j++){ //each col
+    i=0;flgminus=1;flg=1;
+    while(i<n && mat[i][j]==0 && mat[i][k]==0)//initial zeros
+      i++;
+    if(mat[i][j]==mat[i][k])
+      i++;
+    else if (mat[i][j]==-mat[i][k]){
+      flgminus=-1;i++;
+    }
+    else
+      flg=0;
+    while(flg && i<n){
+      if(mat[i][j]!=flgminus*mat[i][k])
+	flg=0;
+      i++;
+    }
+    if(flg)
+      return 1;
+  }
+  return 0;
+}
+
+// list repeated columns (possibly after a sign change) 
+// of an n X m matrix mat. Store the information in a binary vector
+// of what to keep and what to discard
+
+int reps(int **mat, int n, int m, bool **keeps){
+  int k, tot=1;
+  (*keeps)[0]=1;
+  for(k=1;k<m;k++){// keep the first column
+    if(eqorminus(mat, n, k))
+      (*keeps)[k]=0;
+    else{
+      (*keeps)[k]=1;tot++;
+    }
+  }
+  return tot;
+}
+
+// remove redundant columns from a stoichiometric matrix
+// i.e. columns which (upto sign change) appear previously 
+
+int **redmat(int **mat, int n, int m, int *m1){
+  bool *keeps=(bool *)malloc((size_t) ((m)*sizeof(bool)));
+  int **tmp;
+  int i,j,tot=0;
+
+  (*m1)=reps(mat,n,m,&keeps);
+  tmp=imatrix(0, n-1, 0, (*m1)-1);
+  for(i=0;i<m;i++){//column
+    if(keeps[i]){
+      for(j=0;j<n;j++)//row
+	tmp[j][tot]=mat[j][i];
+      tot++;
+    }
+  }
+  return tmp;
 }
 
 
@@ -509,7 +622,7 @@ int submat_signpat_compat(int **imat1, int **imat2, int n, int m, int *vec1, int
   pms=allperms1(vec2, k);
   for(i=0;i<fk;i++){
     tmp=unsterm1(imat2, n, m, vec1, pms[i],k);
-    if (tmp!=0){
+    if(tmp){
       if(abs(tmp)>1){ // unsigned term
 	free_imatrix(pms,0, fk-1, 0, k);
 	return 0;
@@ -538,58 +651,52 @@ int submat_signpat_compat(int **imat1, int **imat2, int n, int m, int *vec1, int
 
 /* imat1 is an n X m matrix, while imat2 is an n X m sign-pattern */
 /* check if they are compatible. */
+/* flag = 3 means the matrices are compatible and r-strongly compatible */
+/* flag = 2 means the matrices are compatible but not r-strongly compatible */
+/* flag = 1 means the matrices are r-strongly compatible but not compatible */
+/* flag = 0 means the matrices are none of the above */
 
 int mat_signpat_compat(int **imat1, int **imat2, int n, int m, int q){
   int k;
-  int r;
   long r1, r2, cnk, cmk;
   int **xcombs;
   int **ycombs;
-  int flag=1;
+  int flag=3, flg;
+  int imatrank=matrank(imat1,n,m);
+  bool posprod=0;
 
-
-  for (r1=0;r1<n;r1++){
-    for (r2=0;r2<m;r2++){
-      if (imat1[r1][r2]*imat2[r1][r2]<0) 
-	flag=0;
-    }
-  }
-  if(!flag){
-    fprintf(stderr, "\nThe matrices do not have compatible sign patterns.\n");
-    return 0;
-  }
-
-  r=min(n,m);
-
-  for(k=1;k<=r;k++){
+  for(k=imatrank;k>=1;k--){
+    if(k==imatrank-1 && !posprod) // not r-strongly compatible
+      flag=2;
     xcombs=allcombsgen(n,k);
     ycombs=allcombsgen(m,k);
-    cnk=comb(n, k);
-    cmk=comb(m, k);
+    cnk=comb(n, k);cmk=comb(m, k);
     fprintf(stderr, "\nchecking %.0f minors of size %d...\n", ((double) cnk)*((double) (cmk)), k);
     for(r1=0;r1<cnk;r1++){
       if(r1%100==0)
 	fprintf(stderr, ".");
       for(r2=0;r2<cmk;r2++){
-	if(!submat_signpat_compat(imat1, imat2, n, m, xcombs[r1], ycombs[r2], k)){
-	  fprintf(stderr, "\npair of submatrices which fail to be compatible:\n\n");
+	flg=submat_signpat_compat(imat1, imat2, n, m, xcombs[r1], ycombs[r2], k);
+	if(!flg){ // fail to be compatible: return 1 or 0
+	  fprintf(stderr, "\nnumerical/pattern submatrices which fail to be compatible:\n\n");
 	  printsubmat(imat1, xcombs[r1], ycombs[r2], k, k);
 	  fprintf(stderr, "*** and ***\n");
 	  printsubmat(imat2, xcombs[r1], ycombs[r2], k, k);
-	  flag=0; // exit here for speed
+	  if(k==imatrank){flag=0;}else if(flag>=2){flag=flag-2;}
 	  if(q){
 	    free_imatrix(xcombs, 0, cnk-1, 0, k-1);
 	    free_imatrix(ycombs, 0, cmk-1, 0, k-1);
 	    return flag;
 	  }
 	}
+	else if(flg==2 && k==imatrank) // a strictly positive product
+	  posprod=1;
 
       }
     }
     free_imatrix(xcombs, 0, cnk-1, 0, k-1);
     free_imatrix(ycombs, 0, cmk-1, 0, k-1);
   }
-
 
   return flag;
 }
@@ -646,13 +753,11 @@ int mat_signpat_compat1(int **imat1, int **imat2, int n, int m, int q){
 
 int mat_signpat_compat2(int **imat1, int **imat2, int n, int m, int q){
   int k;
-  int r;
   long r1, r2, cnk, cmk;
   int **xcombs;
   int **ycombs;
   int flag=1,flg=0;
 
-  r=min(n,m);
   k=matrank(imat1, n,m);
 
   fprintf(stderr, "Rank of first matrix: %d.\n", k);
@@ -690,6 +795,8 @@ int mat_signpat_compat2(int **imat1, int **imat2, int n, int m, int q){
 }
 
 
+
+
 /* Check if n X m matrix imat1 and n X m sign pattern imat2 */
 /* are compatible. Remove empty rows/columns first. This is */
 /* done twice because in theory each removal can create a new */
@@ -706,12 +813,17 @@ int arecompat(int **imat1, int **imat2, int n, int m, int q){
   simppair(imat1a, imat2a, n1, m1, &imat1b, &imat2b, &n2, &m2);
   printmat(imat1b, n2, m2);
   printmat(imat2b, n2, m2);
-  fprintf(stderr, "Checking if matrices are compatible...\n");
+  fprintf(stderr, "Checking if matrix and sign-pattern are compatible...\n");
   flag=mat_signpat_compat(imat1b, imat2b, n2, m2, q);
-  if(flag)
-    fprintf(stderr, "Finished checking compatibility: matrices are compatible.\n---------------------------------------\n");
+
+  if(flag==3)
+    fprintf(stderr, "Finished checking compatibility: matrix and sign-pattern are compatible and r-strongly compatible.\n---------------------------------------\n");
+  else if(flag==2)
+    fprintf(stderr, "Finished checking compatibility: matrix and sign-pattern are compatible but not r-strongly compatible.\n---------------------------------------\n");
+  else if(flag==1)
+    fprintf(stderr, "Finished checking compatibility: matrix and sign-pattern are r-strongly compatible but not compatible.\n---------------------------------------\n");
   else
-    fprintf(stderr, "Finished checking compatibility: matrices are not compatible.\n---------------------------------------\n");
+    fprintf(stderr, "Finished checking compatibility: matrix and sign-pattern are not compatible or r-strongly compatible.\n---------------------------------------\n");
 
   free_imatrix(imat1a, 0, n1-1, 0, m1-1);
   free_imatrix(imat2a, 0, n1-1, 0, m1-1);
@@ -720,24 +832,6 @@ int arecompat(int **imat1, int **imat2, int n, int m, int q){
   return flag;
 }
 
-/* Check if n X m matrix imat1 and n X m sign pattern imat2 */
-/* are r-compatible where r is the rank of the first matrix */
-
-int arercompat(int **imat1, int **imat2, int n, int m, int q){
-  int flag=0;
-  // simplify first
-  fprintf(stderr, "Checking r-compatibility...\n");
-
-  flag=mat_signpat_compat2(imat1, imat2, n, m, q);
-  if(flag==2)
-    fprintf(stderr, "Finished checking r-compatibility: matrices are r-strongly compatible.\n---------------------------------------\n");
-  else if(flag==1)
-    fprintf(stderr, "Finished checking r-compatibility: matrices are r-compatible,\nbut not r-strongly compatible\n---------------------------------------\n");
-  else
-    fprintf(stderr, "Finished checking r-compatibility: matrices are not r-compatible.\n---------------------------------------\n");
-
-  return flag;
-}
 
 
 /* Check if n X m matrix mat is SSD. The routine */
@@ -745,46 +839,47 @@ int arercompat(int **imat1, int **imat2, int n, int m, int q){
 /* columns/rows of zeros. */
 
 int isSSD(int **mat, int n, int m, int q){
-  int **imat;
-  int n1, m1, flag=0;
-  imat=simpmat(mat, n, m, &n1, &m1);
-  fprintf(stderr, "Checking if the matrix is SSD...\n");
-  if(n1+m1 > 15)
+  int flag=0;
+  int **imat, n1, m1;
+  int imatrank=matrank(mat,n,m);
+  int rkbad=0; // rank of bad minors found
+  fprintf(stderr, "Checking if the matrix is SSD or r-SSD...\n");
+  if(n+m > 15)
     fprintf(stderr, "...please be patient. This could take time.\n");
-  flag=isSSD1(imat, n1, m1, 1, q);
-  if(flag)
+  imat=simpmat(mat, n, m, &n1, &m1);
+  flag=isSSD1(imat, n1, m1, 1, &rkbad, q);
+  free_imatrix(imat,0, n1-1, 0, m1-1);
+  if(flag){
     fprintf(stderr, "Finished checking SSD: the matrix is SSD.\n---------------------------------------\n");
-  else
-    fprintf(stderr, "Finished checking SSD: the matrix is not SSD.\n---------------------------------------\n");
-  free_imatrix(imat,0, n1-1, 0, m1-1);
-  return flag;
+    return 2;
+  }
+  else if(rkbad==imatrank){
+    fprintf(stderr, "Finished checking SSD: the matrix is not SSD or r-SSD.\n---------------------------------------\n");
+    return 0;
+  }
+  flag=isSSD1(mat, n, m, 0, &rkbad, q);
+
+  if(flag){
+    fprintf(stderr, "Finished checking SSD: the matrix is r-SSD but not SSD.\n---------------------------------------\n");
+    return 1;
+  }
+  else{
+    fprintf(stderr, "Finished checking SSD: the matrix is not SSD or r-SSD.\n---------------------------------------\n");
+    return 0;
+  }
 }
 
-/* Check if n X m matrix mat is SSD. The routine */
-/* is a wrapper for isSSD1 adding a step removing */
-/* columns/rows of zeros. */
 
-int isrSSD(int **mat, int n, int m, int q){
-  int **imat;
-  int n1, m1, flag=0;
-  imat=simpmat(mat, n, m, &n1, &m1);
-  fprintf(stderr, "Checking if the matrix is r-SSD...\n");
-  if(n1+m1 > 15)
-    fprintf(stderr, "...please be patient. This could take time.\n");
-  flag=isSSD1(imat, n1, m1, 0, q);
-  if(flag)
-    fprintf(stderr, "Finished checking r-SSD: the matrix is r-SSD.\n---------------------------------------\n");
-  else
-    fprintf(stderr, "Finished checking r-SSD: the matrix is not r-SSD.\n---------------------------------------\n");
-  free_imatrix(imat,0, n1-1, 0, m1-1);
-  return flag;
-}
 
 /* Check if n X m matrix mat is CSD (All square */
 /* submatrices are sign nonsingular or sign singular) */
 
+/* flag = 2 means CSD */
+/* flag = 1 means r-CSD but not CSD */
+/* flag = 0 means neither */
 
-int isCSD1(int **imat, int n, int m, int q){
+
+int isCSD1(int **imat, int n, int m, bool allm, int *rkbad, int q){
   int k,r;
   long r1, r2, cnk, cmk;
   int **xcombs;
@@ -794,51 +889,75 @@ int isCSD1(int **imat, int n, int m, int q){
   int **pms;
   int ret;
   int rtrig=9;
-  r=min(n,m);
-  for(k=r;k>=2;k--){
-    xcombs=allcombsgen(n,k);
-    ycombs=allcombsgen(m,k);
-    cnk=comb(n, k);
-    cmk=comb(m, k);
-    fk=factorial(k);
-    for(r2=0;r2<cmk;r2++){
-      if(k<=rtrig)
-	pms=allperms1(ycombs[r2], k);
-      for(r1=0;r1<cnk;r1++){
-	if(k>rtrig) // large submatrix
-	  ret=minorisSNSSS2(imat, n, m, xcombs[r1], ycombs[r2], k);
-	else
-	  ret=minorisSNSSS(imat, n, m, xcombs[r1], ycombs[r2], k, fk, pms);
+  int rmin=2;
+  int imatrank=matrank(imat,n,m);
 
-	if(!ret){
-	  fprintf(stderr, "submatrix which fails to be completely signed:\n");
-	  printsubmat(imat, xcombs[r1], ycombs[r2], k, k);
-	  flag=0; // exit here for speed
-	  if(q){
-	    if(k<=rtrig)
+  if(allm){
+    r=min(n,m);rmin=2;
+  }
+  else{
+    r=imatrank;rmin=r;
+  }
+
+  for(k=r;k>=rmin;k--){
+    xcombs=allcombsgen(n,k);ycombs=allcombsgen(m,k);
+    cnk=comb(n, k);cmk=comb(m, k);
+    fk=factorial(k);
+    if(k<=rtrig){// smallish matrix
+      for(r2=0;r2<cmk;r2++){
+	pms=allperms1(ycombs[r2], k);
+	for(r1=0;r1<cnk;r1++){
+	  if(k>imatrank)// only check for sign singularity
+	    ret=minorisSS(imat, n, m, xcombs[r1], ycombs[r2], k, fk, pms);
+	  else
+	    ret=minorisSNSSS(imat, n, m, xcombs[r1], ycombs[r2], k, fk, pms);
+
+	  if(!ret){
+	    fprintf(stderr, "submatrix which fails to be sign nonsingular or sign singular:\n");
+	    printsubmat(imat, xcombs[r1], ycombs[r2], k, k);
+	    flag=0;if(!(*rkbad)){(*rkbad)=k;}// rank of bad submatrix
+	    if(q){
 	      free_imatrix(pms,0, fk-1, 0, k);
-	    free_imatrix(xcombs, 0, cnk-1, 0, k-1);
-	    free_imatrix(ycombs, 0, cmk-1, 0, k-1);
-	    return flag;
+	      free_imatrix(xcombs, 0, cnk-1, 0, k-1);
+	      free_imatrix(ycombs, 0, cmk-1, 0, k-1);
+	      return flag;
+	    }
 	  }
 	}
-
       }
-      if(k<=rtrig)
-	free_imatrix(pms,0, fk-1, 0, k);
+    }
+    else{// large matrix
+      for(r2=0;r2<cmk;r2++){
+	for(r1=0;r1<cnk;r1++){
+	  if(k>imatrank)// only check for sign singularity
+	    ret=minorisSS2(imat, n, m, xcombs[r1], ycombs[r2], k, fk);
+	  else
+	    ret=minorisSNSSS2(imat, n, m, xcombs[r1], ycombs[r2], k,fk);
+
+	  if(!ret){
+	    fprintf(stderr, "submatrix which fails to be sign nonsingular or sign singular:\n");
+	    printsubmat(imat, xcombs[r1], ycombs[r2], k, k);
+	    flag=0;if(!(*rkbad)){(*rkbad)=k;}// rank of bad submatrix
+	    if(q){
+	      free_imatrix(xcombs, 0, cnk-1, 0, k-1);
+	      free_imatrix(ycombs, 0, cmk-1, 0, k-1);
+	      return flag;
+	    }
+	  }
+
+	}
+      }
     }
     free_imatrix(xcombs, 0, cnk-1, 0, k-1);
     free_imatrix(ycombs, 0, cmk-1, 0, k-1);
-
   }
-
 
   return flag;
 }
 
 /* Check if n X m matrix imat is SSD */
 
-int isSSD1(int **imat, int n, int m, bool allm, int q){
+int isSSD1(int **imat, int n, int m, bool allm, int *rkbad, int q){
   int k, ret=0;
   int r=100;
   long r1, r2, cnk, cmk;
@@ -848,17 +967,18 @@ int isSSD1(int **imat, int n, int m, bool allm, int q){
   unsigned long fk;
   int **pms;
   int rmin=2;
+  int imatrank=matrank(imat,n,m);
 
   if(allm){
-    r=min(n,m);
-    rmin=2;
+    r=imatrank;rmin=2;
   }
   else{
-    r=matrank(imat,n,m);
-    rmin=r;
+    r=imatrank;rmin=r;
   }
+
+  // all minors of size greater than imatrank are definitely singular, so nothing to check
+  
   for(k=r;k>=rmin;k--){
- 
     xcombs=allcombsgen(n,k);
     ycombs=allcombsgen(m,k);
     cnk=comb(n, k);cmk=comb(m, k);
@@ -877,8 +997,8 @@ int isSSD1(int **imat, int n, int m, bool allm, int q){
 	if(!ret){
 	  fprintf(stderr, "submatrix which fails to be sign-nonsingular or singular:\n");
 	  printsubmat(imat, xcombs[r1], ycombs[r2], k, k);
-	  flag=0; // exit here for speed
-	  if(q){
+	  flag=0;if(!(*rkbad)){(*rkbad)=k;}// rank of bad submatrix
+	  if(q){ // exit here for speed
 	    if(k<=10)
 	      free_imatrix(pms,0, fk-1, 0, k);
 	    free_imatrix(xcombs, 0, cnk-1, 0, k-1);
@@ -886,16 +1006,15 @@ int isSSD1(int **imat, int n, int m, bool allm, int q){
 	    return flag;
 	  }
 	}
-
       }
       if(k<=10)
 	free_imatrix(pms,0, fk-1, 0, k);
     }
-
     free_imatrix(xcombs, 0, cnk-1, 0, k-1);
     free_imatrix(ycombs, 0, cmk-1, 0, k-1);
   }
-  return flag;
+
+  return flag; // SSD (and hence automatically r-SSD)
 }
 
 /* Check all minors of size minorsize of an n X m matrix imat */
@@ -1558,18 +1677,35 @@ int **detsk(int **imat, int n, int m, int k){
 /* columns/rows of zeros. */
 
 int isCSD(int **mat, int n, int m, int q){
-  int **imat;
-  int n1, m1, flag;
-  imat=simpmat(mat, n, m, &n1, &m1);
+  int flag;
+  int **imat, n1, m1;
+  int imatrank=matrank(mat,n,m);
+  int rkbad=0; // rank of bad minors found
   fprintf(stderr, "Checking if the matrix is CSD...\n");
-  printmat(imat, n1, m1);
-  flag=isCSD1(imat, n1, m1, q);
-  if(flag==1)
-    fprintf(stderr, "Finished checking CSD: the matrix is CSD.\n---------------------------------------\n");
-  else
-    fprintf(stderr, "Finished checking CSD: the matrix is not CSD.\n---------------------------------------\n");
+  printmat(mat, n, m);
+  imat=simpmat(mat, n, m, &n1, &m1);
+  flag=isCSD1(imat, n1, m1, 1, &rkbad, q);
   free_imatrix(imat,0, n1-1, 0, m1-1);
-  return flag;
+
+  if(flag){
+    fprintf(stderr, "Finished checking CSD: the matrix is CSD.\n---------------------------------------\n");
+    return 2;
+  }
+  else if(rkbad==imatrank){
+    fprintf(stderr, "Finished checking CSD: the matrix is not CSD or r-CSD.\n---------------------------------------\n");
+    return 0;
+  }
+
+  flag=isCSD1(mat, n, m, 0, &rkbad, q);
+
+  if(flag){
+    fprintf(stderr, "Finished checking CSD: the matrix is r-CSD but not CSD.\n---------------------------------------\n");
+    return 1;
+  }
+  else{
+    fprintf(stderr, "Finished checking CSD: the matrix is not CSD or r-CSD.\n---------------------------------------\n");
+    return 0;
+  }
 }
 
 /* Convert n X m matrix imat into irreversible form: */
@@ -1605,29 +1741,57 @@ int doubleisWSD2(int **imat, int n, int m){
 
 int doubleisWSD(int **mat, int n, int m, int q){
   int **imat, **tmp;
-  int n1,m1,flag=0;
+  int n1,m1,flag1=0,flag2=0;
+  int rkbad=0;
+  int imatrank=matrank(mat,n,m);
   imat=simpmat(mat, n, m, &n1, &m1); // first simplify and then double
   tmp=doublemat(imat, n1, m1);
-  fprintf(stderr, "Checking if this matrix is WSD...\n");
-  printmat(tmp, n1, 2*m1);
-  flag=isWSD1(tmp, n1, 2*m1, q);
-  if(flag==1)
-    fprintf(stderr, "Finished checking WSD: the matrix is WSD.\n---------------------------------------\n");
-  else
-    fprintf(stderr, "Finished checking WSD: the matrix is not WSD.\n---------------------------------------\n");
-  free_imatrix(tmp, 0, n-1, 0, 2*m-1);
+  //fprintf(stderr, "Checking if this matrix is WSD...\n");
+  //printmat(tmp, n1, 2*m1);
+  flag1=isWSD1(tmp, n1, 2*m1, 1, &rkbad, q); //all
+  free_imatrix(tmp, 0, n1-1, 0, 2*m1-1);
   free_imatrix(imat,0, n1-1, 0, m1-1);
-  return flag;
+  if(flag1==0 && rkbad==imatrank){// no need to check rWSD
+    fprintf(stderr, "Finished checking WSD: the matrix is neither r-strongly WSD nor WSD.\n---------------------------------------\n");
+    return 0;
+  }
+  // for r-strong WSD, don't simplify
+  tmp=doublemat(mat, n, m);
+  fprintf(stderr, "Checking if this matrix is WSD or r-strongly WSD...\n");
+  printmat(tmp, n, 2*m);
+  flag2=isWSD1(tmp, n, 2*m, 0, &rkbad, q); // only maximal
+  free_imatrix(tmp, 0, n-1, 0, 2*m-1);
+
+  if(flag1 && flag2){
+    fprintf(stderr, "Finished checking WSD: the matrix is WSD and r-strongly WSD.\n---------------------------------------\n");
+    return 3;
+  }
+  else if (flag1){
+    fprintf(stderr, "Finished checking WSD: the matrix is WSD but not r-strongly WSD.\n---------------------------------------\n");
+    return 2;
+  }
+  else if(flag2){
+    fprintf(stderr, "Finished checking WSD: the matrix is r-strongly WSD but not WSD.\n---------------------------------------\n");
+    return 1;
+  }
+  else{
+    fprintf(stderr, "Finished checking WSD: the matrix is neither r-strongly WSD nor WSD.\n---------------------------------------\n");
+    return 0;
+  }
+
 
 }
+
+
 
 /* A wrapper for isWSD1, first removing rows/columns of zeros */
 
 int isWSD(int **mat, int n, int m, int q){
   int **imat;
   int n1,m1,flag=0;
+  int rkbad=0;
   imat=simpmat(mat, n, m, &n1, &m1);
-  flag=isWSD1(imat, n1, 2*m1, q);
+  flag=isWSD1(imat, n1, 2*m1, 1, &rkbad, q);
   free_imatrix(imat,0, n1-1, 0, m1-1);
   return flag;
 
@@ -1669,100 +1833,125 @@ int isWSD2(int **imat, int n, int m){
 /* matrix of exponents, and to remove rows/columns of zeros. */
 /* Then compatibility is checked. */
 
-int isWSD1(int **imat, int n, int m, int q){
-  int k;
-  int r=100;
+/* flag = 3 means the matrices are compatible and r-strongly compatible */
+/* flag = 2 means the matrices are compatible but not r-strongly compatible */
+/* flag = 1 means the matrices are r-strongly compatible but not compatible */
+/* flag = 0 means the matrices are none of the above */
+
+int isWSD1(int **imat, int n, int m, bool allm, int *rkbad, int q){
+  int k,rmin,rmax,tt;
   long r1,r2,cnk,cmk;
   int **xcombs;
   int **ycombs;
   int flag=1;
   int **imat2, **imat3, n1, m1;
+  int mr1, mr2;
+  bool posprod=0;
 
   WSpair(imat, n, m, &imat2, &imat3, &n1, &m1); // imat3 is sparser
-  fprintf(stderr, "The simplified matrix pair...\n");
-  printmat(imat2, n1, m1);
-  printmat(imat3, n1, m1);
 
-  r=min(n1,m1);
+  if(n1!=n || m1!=m){
+    fprintf(stderr, "The simplified matrix pair...\n");
+    printmat(imat2, n1, m1);
+    printmat(imat3, n1, m1);
+  }
 
-  for(k=2;k<=r;k++){
-    xcombs=allcombsgen(n1,k);
-    ycombs=allcombsgen(m1,k);
+  mr1=matrank(imat2,n1,m1);mr2=matrank(imat3,n1,m1);
+  rmax=min(mr1,mr2);
+
+  if(!allm && rmax<mr1){ // can't be r-strongly compatible
+    free_imatrix(imat2, 0, n1-1, 0, m1-1);
+    free_imatrix(imat3, 0, n1-1, 0, m1-1);
+    return 0;
+  }
+
+  if(allm)
+    rmin=2;
+  else
+    rmin=rmax;
+
+  for(k=rmax;k>=rmin;k--){
+    xcombs=allcombsgen(n1,k);ycombs=allcombsgen(m1,k);
     cnk=comb(n1,k);cmk=comb(m1,k);
     for(r1=0;r1<cnk;r1++){
       for(r2=0;r2<cmk;r2++){
-	if(fixedminorcompat(imat2, imat3, n1, m1, xcombs[r1], ycombs[r2],k)<0){
+	if((tt=fixedminorcompat(imat2, imat3, n1, m1, xcombs[r1], ycombs[r2],k))<0){
 	  fprintf(stderr, "submatrix which fails det(S)det(S-) >=0:\n");
 	  printsubmat(imat, xcombs[r1], ycombs[r2], k, k);
-	  flag=0; 
+	  flag=0;if((*rkbad)==0){(*rkbad)=k;}
 	  if(q){
 	    free_imatrix(xcombs, 0, cnk-1, 0, k-1);
 	    free_imatrix(ycombs, 0, cmk-1, 0, k-1);
-	    if(imat2)
-	      free_imatrix(imat2, 0, n1-1, 0, m1-1);
-	    if(imat3)
-	      free_imatrix(imat3, 0, n1-1, 0, m1-1);
+	    free_imatrix(imat2, 0, n1-1, 0, m1-1);
+	    free_imatrix(imat3, 0, n1-1, 0, m1-1);
 	    return flag;
 	  }
 	}
+	else if(tt==1)// a positive product
+	  posprod=1;
       }
     }
 
     free_imatrix(xcombs, 0, cnk-1, 0, k-1);
     free_imatrix(ycombs, 0, cmk-1, 0, k-1);
   }
+  free_imatrix(imat2, 0, n1-1, 0, m1-1);
+  free_imatrix(imat3, 0, n1-1, 0, m1-1);
 
-  if(imat2)
-    free_imatrix(imat2, 0, n1-1, 0, m1-1);
-  if(imat3)
-    free_imatrix(imat3, 0, n1-1, 0, m1-1);
-
+  if(!allm && !posprod)// not r-strongly WSD
+    return 0;
 
   return flag;
 }
 
-
+// working here: this needs to check r-strong compatibility...
 
 /* Check if n X m matrices imat1 and imat2 are compatible */
+/* flag = 3 means the matrices are compatible and r-strongly compatible */
+/* flag = 2 means the matrices are compatible but not r-strongly compatible */
+/* flag = 1 means the matrices are r-strongly compatible but not compatible */
+/* flag = 0 means the matrices are none of the above */
 
 int mats_compat(int **imat1, int **imat2, int n, int m, int q){
   int k;
-  int r=100,s1,s2;
+  int r,rmin,s1,s2;
   long r1,r2,cnk,cmk;
   int **xcombs;
   int **ycombs;
-  int flag=1;
+  int cmpt=1; // compatible
+  int rscmpt=1; // r-strongly compatible
   int **imat1a, **imat2a;
   int n1, m1;
+  int tt,imatrank;
+  bool posprod=0;
 
-  fprintf(stderr, "Checking if mass-action matrices are compatible.\n\n");
+  fprintf(stderr, "Checking if matrices are compatible.\n\n");
 
   simppair(imat1, imat2, n, m, &imat1a, &imat2a, &n1, &m1); // imat2a is sparser
-  printmat(imat1a, n1, m1);
-  printmat(imat2a, n1, m1);
+  printmat(imat1a, n1, m1);printmat(imat2a, n1, m1);
 
-  r=min(n1,m1);
+  imatrank=matrank(imat1a,n1,m1);
+  r=imatrank;
+  rmin=1;
 
-  for(k=2;k<=r;k++){
+  for(k=r;k>=rmin;k--){
     xcombs=allcombsgen(n1,k);
     ycombs=allcombsgen(m1,k);
     cnk=comb(n1,k);cmk=comb(m1,k);
     for(r1=0;r1<cnk;r1++){
       for(r2=0;r2<cmk;r2++){
 	//	fprintf(stderr, "in here\n");
-	if(fixedminorcompat(imat1a, imat2a, n1, m1, xcombs[r1], ycombs[r2],k) < 0){
-	  //	  fprintf(stderr, "\npair of submatrices with determinants of opposite sign:\n\n");
+	if((tt=fixedminorcompat(imat1a, imat2a, n1, m1, xcombs[r1], ycombs[r2],k)) < 0){
+	  fprintf(stderr, "\npair of submatrices with determinants of opposite sign:\n\n");
 	  for(s1=0;s1<k;s1++){
-	    for(s2=0;s2<k;s2++){
+	    for(s2=0;s2<k;s2++)
 	      fprintf(stderr, "%2d  ",imat1a[xcombs[r1][s1]][ycombs[r2][s2]]);
-	    }
 	    fprintf(stderr, "\n");
 	  }
 	  fprintf(stderr, "*** and ***\n");
 	  for(s1=0;s1<k;s1++){
-	    for(s2=0;s2<k;s2++){
+	    for(s2=0;s2<k;s2++)
 	      fprintf(stderr, "%2d  ",imat2a[xcombs[r1][s1]][ycombs[r2][s2]]);
-	    }
 	    fprintf(stderr, "\n");
 	  }
 
@@ -1774,7 +1963,7 @@ int mats_compat(int **imat1, int **imat2, int n, int m, int q){
 	  }
 
 	  fprintf(stderr, "_____________________\n\n");
-	  flag=0; // could return here for speed
+	  if(k==imatrank){rscmpt=0;}else{cmpt=0;} // could return here for speed
 	  if(q){
 	    free_imatrix(xcombs, 0, cnk-1, 0, k-1);
 	    free_imatrix(ycombs, 0, cmk-1, 0, k-1);
@@ -1783,15 +1972,27 @@ int mats_compat(int **imat1, int **imat2, int n, int m, int q){
 	    if(imat2a)
 	      free_imatrix(imat2a, 0, n1-1, 0, m1-1);
 
-	    fprintf(stderr, "Finished checking if mass-action matrices are compatible: matrices are not compatible.\n---------------------------------------\n");
-	    return flag;
+	    if(rscmpt==0){ // not r-strongly
+	      fprintf(stderr, "Finished checking if matrices are compatible: matrices are not compatible or r-strongly compatible.\n---------------------------------------\n");
+	      return 0;
+	    }
+	    else{
+	      fprintf(stderr, "Finished checking if matrices are compatible: matrices are r-strongly compatible but not compatible.\n---------------------------------------\n");
+	      return 1;
+	    }
 	  }
+	}
+	else if(tt>0 && k==imatrank){
+	  posprod=1;
+
 	}
       }
     }
 
     free_imatrix(xcombs, 0, cnk-1, 0, k-1);
     free_imatrix(ycombs, 0, cmk-1, 0, k-1);
+    if(k==imatrank && !posprod)
+      rscmpt=0;
   }
 
   if(imat1a)
@@ -1799,12 +2000,24 @@ int mats_compat(int **imat1, int **imat2, int n, int m, int q){
   if(imat2a)
     free_imatrix(imat2a, 0, n1-1, 0, m1-1);
 
-  if(flag==1)
-    fprintf(stderr, "Finished checking if mass-action matrices are compatible: matrices are compatible.\n---------------------------------------\n");
-  else
-    fprintf(stderr, "Finished checking if mass-action matrices are compatible: matrices are not compatible.\n---------------------------------------\n");
+  if(rscmpt && cmpt){ // both succeeded
+    fprintf(stderr, "Finished checking if matrices are compatible: matrices are compatible and r-strongly compatible.\n---------------------------------------\n");
+    return 3;
+  }
+  else if(rscmpt && !cmpt){
+    fprintf(stderr, "Finished checking if matrices are compatible: matrices are r-strongly compatible, but not compatible.\n---------------------------------------\n");
+    return 1;
+  }
+  else if(!rscmpt && cmpt){
+    fprintf(stderr, "Finished checking if matrices are compatible: matrices are compatible but not r-strongly compatible.\n---------------------------------------\n");
+    return 2;
+  }
+  else{
+    fprintf(stderr, "Finished checking if matrices are compatible: matrices are not compatible or r-strongly compatible.\n---------------------------------------\n");
+    return 0;
+  }
 
-  return flag;
+
 }
 
 // the Mass-action Jacobian is sign nonsingular
@@ -1969,8 +2182,6 @@ void simppair(int **imat, int **imat1, int n, int m, int ***imat2, int ***imat3,
   int *emptyrows;
   (*n1)=0;(*m1)=0;
 
-
-
   emptycols=(int *)malloc((size_t) ((m)*sizeof(int)));
   emptyrows=(int *)malloc((size_t) ((n)*sizeof(int)));
 
@@ -2001,10 +2212,10 @@ void simppair(int **imat, int **imat1, int n, int m, int ***imat2, int ***imat3,
 	i++;
       }
     }
-
     j++;
   }
-  fprintf(stderr, "numcols = %d --> %d\n", m, (*m1));
+  if(m!=(*m1))
+    fprintf(stderr, "numcols = %d --> %d\n", m, (*m1));
 
   i=0;j=0;
 
@@ -2027,7 +2238,8 @@ void simppair(int **imat, int **imat1, int n, int m, int ***imat2, int ***imat3,
     }
     i++;
   }
-  fprintf(stderr, "numrows = %d --> %d\n", n, (*n1));
+  if(n!=(*n1))
+    fprintf(stderr, "numrows = %d --> %d\n", n, (*n1));
 
   if((*n1)==0 || (*m1)==0){ // one matrix is a matrix of zeros
     (*imat2)=NULL;(*imat3)=NULL;
@@ -4912,12 +5124,13 @@ int isreac(char *str){
   return 0;
 }
 
-//imat1 is the stoichiometric matrix
-//imat2 is the pattern matrix of V
+// imat1 is the stoichiometric matrix
+// imat2 is the pattern matrix of V
+// imat3 is the irreversible stoichiometric matrix
+// imat4 is the corresponding matrix of powers (assuming mass action)
 
 int getallreacs(char *str, int ***imat1, int ***imat2, int ***imat3, int ***imat4, char ***chems, int *n, int *m, int *cols3, int *allrev, int *allgood){
-  // imat3 is the irreversible stoichiometric matrix
-  // imat4 is the corresponding matrix of powers (a mass action like system)
+
   long pos=0;
   int pos1;
   char *line;
@@ -5563,9 +5776,9 @@ int strmatisCSD(char *fname, int q){
 
 int analysereacs(const char fname[], int q, bool htmlswitch){
 
-  int **imat1, **imat2, **imat3, **imat4;
+  int **imat1, **imat2, **imat3, **imat4, **imat1a;
   char *str;
-  int mlen=0, nlen=0;
+  int mlen=0, nlen=0, mlena=0;
   char **chems;
   long pos=0;
   char *line;
@@ -5574,12 +5787,17 @@ int analysereacs(const char fname[], int q, bool htmlswitch){
   int cols3;
   int csdflag=0;
   int ssdflag=0;
+  int wsdflag=0;
+  int compatflag=0;
+  int MAcompatflag=0;
   char mpnestr[100];
   char IC1str[200];
-  char IC2str[200];
+  char IC3str[200];
   char IC12str[400];
   char WSDstr[400];
-  int yy,zz;
+  char WSDstr1[400];
+  char WSDstr12[400];
+
 
   str=readfileintostr(fname);
   if(isonlyspace(str)){
@@ -5588,31 +5806,24 @@ int analysereacs(const char fname[], int q, bool htmlswitch){
     return -1;
   }
 
-  if(htmlswitch)
+  if(htmlswitch){
     strcpy(mpnestr, "<a title=\"MPNE\" href=\"http://reaction-networks.net/wiki/CoNtRol#MPNE\">MPNE</a>");
-  else
+    strcpy(IC1str, "General kinetics: the system satisfies condition <a title=\"IC1\" href=\"http://reaction-networks.net/wiki/CoNtRol#Injectivity_condition_1_.28IC1.29\">IC1</a>");
+    strcpy(IC3str, "General kinetics: the system satisfies condition <a title=\"IC3\" href=\"http://reaction-networks.net/wiki/CoNtRol#Injectivity_condition_3_.28IC3.29\">IC3</a>");
+    strcpy(IC12str, "General kinetics: the system satisfies conditions <a title=\"IC1\" href=\"http://reaction-networks.net/wiki/CoNtRol#Injectivity_condition_1_.28IC1.29\">IC1</a> and <a title=\"IC3\" href=\"http://reaction-networks.net/wiki/CoNtRol#Injectivity_condition_3_.28IC3.29\">IC3</a>");
+    strcpy(WSDstr1, "Mass action kinetics: the system satisfies condition <a title=\"IC2\" href=\"http://reaction-networks.net/wiki/CoNtRol#Injectivity_condition_2_.28IC2.29\">IC2</a>");
+    strcpy(WSDstr, "Mass action kinetics: the system with mass action kinetics satisfies condition <a title=\"IC3\" href=\"http://reaction-networks.net/wiki/CoNtRol#Injectivity_condition_3_.28IC3.29\">IC3</a>");
+    strcpy(WSDstr12, "Mass action kinetics: the system with mass action kinetics satisfies conditions <a title=\"IC2\" href=\"http://reaction-networks.net/wiki/CoNtRol#Injectivity_condition_2_.28IC2.29\">IC2</a> and <a title=\"IC3\" href=\"http://reaction-networks.net/wiki/CoNtRol#Injectivity_condition_3_.28IC3.29\">IC3</a>");
+  }
+  else{
     strcpy(mpnestr, "MPNE");
-
-  if(htmlswitch)
-    strcpy(IC1str, "The system satisfies condition <a title=\"IC1\" href=\"http://reaction-networks.net/wiki/CoNtRol#Injectivity_condition_1_.28IC1.29\">IC1</a>");
-  else
-    strcpy(IC1str, "The system satisfies condition IC1");
-
-  if(htmlswitch)
-    strcpy(IC2str, "The system satisfies condition <a title=\"IC2\" href=\"http://reaction-networks.net/wiki/CoNtRol#Injectivity_condition_2_.28IC2.29\">IC2</a>");
-  else
-    strcpy(IC2str, "The system satisfies condition IC2");
-
-  if(htmlswitch)
-    strcpy(IC12str, "The system satisfies conditions <a title=\"IC1\" href=\"http://reaction-networks.net/wiki/CoNtRol#Injectivity_condition_1_.28IC1.29\">IC1</a> and <a title=\"IC2\" href=\"http://reaction-networks.net/wiki/CoNtRol#Injectivity_condition_2_.28IC2.29\">IC2</a>");
-  else
-    strcpy(IC12str, "The system satisfies conditions IC1 and IC2");
-
-  if(htmlswitch)
-    strcpy(WSDstr, "The system with mass action kinetics satisfies condition <a title=\"IC2\" href=\"http://reaction-networks.net/wiki/CoNtRol#Injectivity_condition_2_.28IC2.29\">IC2</a>");
-  else
-    strcpy(WSDstr, "The system with mass action kinetics satisfies condition IC2");
-
+    strcpy(IC1str, "General kinetics: the system satisfies condition IC1");
+    strcpy(IC3str, "General kinetics: the system satisfies condition IC3");
+    strcpy(IC12str, "General kinetics: the system satisfies conditions IC1 and IC3");
+    strcpy(WSDstr1, "Mass action kinetics: the system satisfies condition IC2");
+    strcpy(WSDstr, "Mass action kinetics: the system satisfies condition IC3");
+    strcpy(WSDstr12, "Mass action kinetics: the system satisfies conditions IC2 and IC3");
+  }
 
 
   line = getlinefromstr(&pos, str);
@@ -5649,98 +5860,101 @@ int analysereacs(const char fname[], int q, bool htmlswitch){
     }
     free(str);
 
-    fprintf(stderr, "The stoichiometric matrix:\n\n");
+    fprintf(stderr, "The stoichiometric matrix (rank = %d):\n\n", matrank(imat1, nlen, mlen));
     printmat1(chems, imat1, nlen, mlen);
     fprintf(stderr, "The pattern matrix for -V^T:\n\n");
     printmatpat(chems, imat2, nlen, mlen);
     fprintf(stderr, "The irreversible stoichiometric matrix:\n\n");
     printmat1(chems, imat3, nlen, cols3);
-    fprintf(stderr, "The matrix of powers (for an MA system):\n\n");
+    fprintf(stderr, "The matrix of powers (mass action):\n\n");
     printmat1(chems, imat4, nlen, cols3);
 
     fprintf(stderr, "\n_________________________________\n\n");
 
+
     if(allgood==1){ // no reactants on both sides
-      if((csdflag=isCSD(imat1, nlen, mlen, q))){
-	fprintf(stdout, "The S-matrix is CSD. %s. In fact, this reaction structure satisfies conditions IC1 and IC2 with *any stoichiometries*, and regardless of whether all reactions are reversible or irreversible.\n", IC12str);
+      imat1a=redmat(imat1, nlen, mlen, &mlena);//remove redundant cols
+      csdflag=isCSD(imat1a, nlen, mlena, q);
+      if(csdflag!=2){
+	ssdflag=isSSD(imat1a, nlen, mlena, q);
+	if(ssdflag!=2)
+	  wsdflag=doubleisWSD(imat1a, nlen, mlena, q);
       }
-      else if((ssdflag=isSSD(imat1, nlen, mlen, q))){
-	fprintf(stdout, "The S-matrix is SSD. %s.\n", IC12str);
+      if(csdflag==2)
+	fprintf(stdout, "%s. In fact, this reaction structure satisfies conditions IC1 and IC3 with *any stoichiometries*, and regardless of whether all reactions are reversible or irreversible.\n", IC12str);
+      else if(ssdflag){
+	if(ssdflag==2 && csdflag==1)
+	  fprintf(stdout, "%s. (In fact, this reaction structure satisfies condition IC1, but not necessarily IC3, with *any stoichiometries*, and regardless of whether all reactions are reversible or irreversible.)\n", IC12str);
+	else if(ssdflag==2)
+	  fprintf(stdout, "%s.\n", IC12str);
+	else if(csdflag==1)
+	  fprintf(stdout, "%s. This reaction structure satisfies condition IC1 with *any stoichiometries*, and regardless of whether all reactions are reversible or irreversible.\n", IC1str);
+	else
+	  fprintf(stdout, "%s\n", IC1str);
       }
-      else if(isrSSD(imat1, nlen, mlen, q)){
-	fprintf(stdout, "The S-matrix is r-SSD. %s\n", IC1str);
+
+      if(csdflag!=2 && ssdflag!=2){ // check mass action
+	if(wsdflag==3)
+	  fprintf(stdout, "%s.\n", WSDstr12);
+	else if(wsdflag==2)
+	  fprintf(stdout, "%s.\n", WSDstr);
+	else if(ssdflag!=1 && wsdflag==1)
+	  fprintf(stdout, "%s.\n", WSDstr1);
       }
- 
-      else if(doubleisWSD(imat1, nlen, mlen, q)){// first check mass-action
-	if(allrev==0 && arecompat(imat1, imat2, nlen, mlen, q)){
-	  fprintf(stdout, "The S-matrix and pattern -V^T are r-strongly compatible. %s. %s.\n", IC1str, WSDstr);
-	}
-	else if(allrev==0 && arercompat(imat1, imat2, nlen, mlen, q)==2){
-	  fprintf(stdout, "The S-matrix and pattern -V^T are r-strongly compatible. %s. %s.\n", IC1str, WSDstr);
-	}
-	else if(allrev==1 && arercompat(imat1, imat2, nlen, mlen, q)==2){
-	  fprintf(stdout, "The S-matrix and pattern -V^T are r-strongly compatible. %s. %s.\n", IC1str, WSDstr);
-	}
-	else if (allrev==1)
-	  fprintf(stdout, "%s. No claims about multistationarity seem possible about the system with general kinetics.\n", WSDstr);
+      free_imatrix(imat1a, 0, nlen-1, 0, mlena-1);
+    }
+    if(allgood && allrev && csdflag==0 && ssdflag==0 && wsdflag==0){
+      fprintf(stdout, "No injectivity claims seem possible for mass-action kinetics or for general kinetics.\n");
+    }
+
+    if(!allgood || (!allrev && csdflag==0 && ssdflag==0 && wsdflag==0)){
+  
+      /* flag = 3 means the matrices are compatible and r-strongly compatible */
+      /* flag = 2 means the matrices are compatible but not r-strongly compatible */
+      /* flag = 1 means the matrices are r-strongly compatible but not compatible */
+      /* flag = 0 means the matrices are none of the above */
+
+      compatflag=arecompat(imat1, imat2, nlen, mlen, q);
+      if(compatflag==3)
+	fprintf(stdout, "%s.\n", IC12str);
+      else if(compatflag==2){
+	MAcompatflag=mats_compat(imat3, imat4, nlen, cols3, q);
+	if(MAcompatflag==3 || MAcompatflag==1)
+	  fprintf(stdout, "%s. %s.\n", IC3str, WSDstr1);
+	else
+	  fprintf(stdout, "%s.\n", IC3str);
+      }
+      else if(compatflag==1){
+	MAcompatflag=mats_compat(imat3, imat4, nlen, cols3, q);
+	if(MAcompatflag==3 || MAcompatflag==2)
+	  fprintf(stdout, "%s. %s.\n", IC1str, WSDstr);
+	else
+	  fprintf(stdout, "%s\n", IC1str);
       }
       else{
-	if(allrev==0){ // some irreversible
-	  zz=arercompat(imat1, imat2, nlen, mlen, q);yy=0;
-	  if(zz){yy=arecompat(imat1, imat2, nlen, mlen, q);}
-	  if(zz==2 && yy){
-	    fprintf(stdout, "The S-matrix and pattern -V^T are compatible and r-strongly compatible. %s.\n", IC12str);
-	  }
-	  else if(yy){
-	    fprintf(stdout, "The S-matrix and pattern -V^T are compatible. %s.\n", IC2str);
-	  }
-	  else if(zz==2){
-	    fprintf(stdout, "The S-matrix and pattern -V^T are r-strongly compatible. %s\n", IC1str);
-	  }
-	  else if(mats_compat(imat3, imat4, nlen, cols3, q)){
-	    fprintf(stdout, "The system may admit %s for general kinetics, but\nwith mass-action kinetics it does not admit %s.\n", mpnestr, mpnestr);
-	  }
-	  else{
-	    allminorsigns(imat3, imat4, nlen, cols3, q);
-	    fprintf(stdout, "The system may admit %s both for mass-action kinetics and for general kinetics.\n", mpnestr);
-	  }
-
-	}
+	MAcompatflag=mats_compat(imat3, imat4, nlen, cols3, q);
+	if(MAcompatflag==3)
+	  fprintf(stdout, "%s. (No injectivity claims seem possible for more general kinetics.)\n", WSDstr12);
+	else if(MAcompatflag==2)
+	  fprintf(stdout, "%s. (No injectivity claims seem possible for more general kinetics.)\n", WSDstr);
+	else if(MAcompatflag==1)
+	  fprintf(stdout, "%s. (No injectivity claims seem possible for more general kinetics.)\n", WSDstr1);
 	else{
-	  fprintf(stdout, "No claims about multistationarity seem possible.\n");
+	  //	allminorsigns(imat3, imat4, nlen, cols3, q);
+	  fprintf(stdout, "No injectivity claims seem possible for mass-action kinetics or for general kinetics.\n");
 	}
-
       }
     }
-    else{ // some reactants on both sides (doesn't matter if reversible or not)
-      zz=arercompat(imat1, imat2, nlen, mlen, q);yy=0;
-      if(zz){yy=arecompat(imat1, imat2, nlen, mlen, q);}
-      if(zz==2 && yy){
-	fprintf(stdout, "The S-matrix and pattern -V^T are compatible and r-strongly compatible. %s.\n", IC12str);
-      }
-      else if(yy){
-	fprintf(stdout, "The S-matrix and pattern -V^T are compatible. %s.\n", IC2str);
-      }
-      else if(zz==2){
-	fprintf(stdout, "The S-matrix and pattern -V^T are r-strongly compatible. %s\n", IC1str);
-      }
-
-      else if(mats_compat(imat3, imat4, nlen, cols3, q)){
-	fprintf(stdout, "The system may admit %s for general kinetics, but\nwith mass-action kinetics it does not admit %s.\n", mpnestr, mpnestr);
-      }
-      else{
-	allminorsigns(imat3, imat4, nlen, cols3, q);
-	fprintf(stdout, "No claims about multistationarity seem possible.\n");
-      }
-
-
-    }
+ 
 
     free_imatrix(imat1, 0, nlen-1, 0, mlen-1);
     free_imatrix(imat2, 0, nlen-1, 0, mlen-1);
     free_imatrix(imat3, 0, nlen-1, 0, cols3-1);
     free_imatrix(imat4, 0, nlen-1, 0, cols3-1);
   }
+  //
+  // The file contains two matrices
+  //
   else if (type==1){
     if(!readmatpairfromstr(str, &nlen, &mlen, &imat1, &imat2)){ 
       fprintf(stderr, "ERROR: Expecting two matrices in file \"%s\". Couldn't find these. EXITING. \n", fname);
@@ -5751,25 +5965,21 @@ int analysereacs(const char fname[], int q, bool htmlswitch){
     printmat(imat1, nlen, mlen);
     printmat(imat2, nlen, mlen);
 
-    zz=arercompat(imat1, imat2, nlen, mlen, q);yy=0;
-    if(zz){yy=arecompat(imat1, imat2, nlen, mlen, q);}
-    if(zz==2 && yy){
-      fprintf(stdout, "The S-matrix and pattern -V^T are compatible and r-strongly compatible. %s.\n", IC12str);
-    }
-    else if(yy){
-      fprintf(stdout, "The S-matrix and pattern -V^T are compatible. %s.\n", IC2str);
-    }
-    else if(zz==2){
-      fprintf(stdout, "The S-matrix and pattern -V^T are r-strongly compatible. %s\n", IC1str);
-    }
-    else{
-      allminorsigns(imat1, imat2, nlen, mlen, q);
-      fprintf(stdout, "No claims about multistationarity seem possible.\n");
-    }
+    compatflag=arecompat(imat1, imat2, nlen, mlen, q);
+    if(compatflag==3)
+      fprintf(stdout, "%s.\n", IC12str);
+    else if(compatflag==2)
+      fprintf(stdout, "%s.\n", IC3str);
+    else if(compatflag==1)
+      fprintf(stdout, "%s\n", IC1str);
+    else
+      fprintf(stdout, "No injectivity claims seem possible for mass-action kinetics or for general kinetics.\n");
     free_imatrix(imat1, 0, nlen-1, 0, mlen-1);
     free_imatrix(imat2, 0, nlen-1, 0, mlen-1);
-
   }
+  //
+  // The file contains a single matrix
+  //
   else{ // single matrix, assumed to be a stoichiometric matrix
     imat1=readmatrixfromstr(str, &nlen, &mlen);
     if(!(*imat1)){
@@ -5778,29 +5988,53 @@ int analysereacs(const char fname[], int q, bool htmlswitch){
       free_imatrix(imat1, 0, nlen-1, 0, mlen-1);
       return -1;
     }
-    fprintf(stderr, "Assuming that this is a stoichiometric matrix, and that all reactions may or may not be irreversible.\n");
-    printmat(imat1, nlen, mlen);
-    if((csdflag=isCSD(imat1, nlen, mlen, q))){
-      fprintf(stdout, "The S-matrix is CSD. %s. In fact, this reaction structure satisfies conditions IC1 and IC2 with *any stoichiometries*, and regardless of whether all reactions are reversible or irreversible.\n", IC12str);
-    }
-    else if((ssdflag=isSSD(imat1, nlen, mlen, q))){
-      fprintf(stdout, "The S-matrix is SSD. %s.\n", IC12str);
-    }
-    else if(isrSSD(imat1, nlen, mlen, q)){
-      fprintf(stdout, "The S-matrix is r-SSD. %s\n", IC1str);
-    }
-    else if(doubleisWSD(imat1, nlen, mlen, q)){
-      fprintf(stdout, "%s. Without further information on reversibility, etc, no claims about multistationarity seem possible about the system with general kinetics.\n", WSDstr);
+    imat1a=redmat(imat1, nlen, mlen, &mlena);//remove redundant cols
+
+    if(mlena!=mlen){
+      fprintf(stderr, "WARNING: This matrix appears to have redundant columns. Assuming that this is a stoichiometric matrix (rank = %d), that no reactants appear on both sides of a reaction, and that all reactions may or may not be irreversible. If you aren't happy with these assumptions, use the reaction format rather than the matrix format. Will use the following matrix for analysis:\n",matrank(imat1, nlen, mlen));
+      printmat(imat1a, nlen, mlena);
     }
     else{
-      fprintf(stderr, "Without further information on reversibility, etc. no claims about multistationarity seem possible.\n");
+      fprintf(stderr, "WARNING: Assuming that this is a stoichiometric matrix (rank = %d), that no reactants appear on both sides of a reaction, and that all reactions may or may not be irreversible. If you aren't happy with these assumptions, use the reaction format rather than the matrix format.\n",matrank(imat1, nlen, mlen));
+      printmat(imat1a, nlen, mlena);
     }
 
+    csdflag=isCSD(imat1a, nlen, mlena, q);
+    if(csdflag!=2){
+      ssdflag=isSSD(imat1a, nlen, mlena, q);
+      if(ssdflag!=2)
+	wsdflag=doubleisWSD(imat1a, nlen, mlena, q);
+    }
+    if(csdflag==2)
+      fprintf(stdout, "%s. In fact, this reaction structure satisfies conditions IC1 and IC3 with *any stoichiometries*, and regardless of whether all reactions are reversible or irreversible.\n", IC12str);
+    else if(ssdflag){
+      if(ssdflag==2 && csdflag==1)
+    	fprintf(stdout, "%s. (In fact, this reaction structure satisfies condition IC1, but not necessarily IC3, with *any stoichiometries*, and regardless of whether all reactions are reversible or irreversible.)\n", IC12str);
+      else if(ssdflag==2)
+    	fprintf(stdout, "%s.\n", IC12str);
+      else if(csdflag==1)
+    	fprintf(stdout, "%s. This reaction structure satisfies condition IC1 with *any stoichiometries*, and regardless of whether all reactions are reversible or irreversible.\n", IC1str);
+      else
+    	fprintf(stdout, "%s\n", IC1str);
+    }
+
+    if(csdflag!=2 && ssdflag!=2){ // check mass action
+      if(wsdflag==3)
+	fprintf(stdout, "%s.\n", WSDstr12);
+      else if(wsdflag==2)
+	fprintf(stdout, "%s.\n", WSDstr);
+      else if(wsdflag==1)
+	fprintf(stdout, "%s.\n", WSDstr1);
+    }
+
+    if(csdflag==0 && ssdflag==0 && wsdflag==0)
+      fprintf(stderr, "Without further information on reversibility, etc. no claims about multistationarity seem possible.\n");
+
     free_imatrix(imat1, 0, nlen-1, 0, mlen-1);
+    free_imatrix(imat1a, 0, nlen-1, 0, mlena-1);
   }
 
-
-
+  fprintf(stdout, "\n");
   return 0;
 
 
