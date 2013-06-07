@@ -656,13 +656,13 @@ int submat_signpat_compat(int **imat1, int **imat2, int n, int m, int *vec1, int
 /* flag = 1 means the matrices are r-strongly compatible but not compatible */
 /* flag = 0 means the matrices are none of the above */
 
-int mat_signpat_compat(int **imat1, int **imat2, int n, int m, int q){
+int mat_signpat_compat(int **imat1, int imatrank, int **imat2, int n, int m, int q){
   int k;
   long r1, r2, cnk, cmk;
   int **xcombs;
   int **ycombs;
   int flag=3, flg;
-  int imatrank=matrank(imat1,n,m);
+  //  int imatrank=matrank(imat1,n,m);
   bool posprod=0;
 
   for(k=imatrank;k>=1;k--){
@@ -806,6 +806,7 @@ int arecompat(int **imat1, int **imat2, int n, int m, int q){
   int **imat1a, **imat2a, **imat1b, **imat2b;
   int n1, m1, n2, m2;
   int flag=0;
+  int imatrank=matrank(imat1, n, m);
   // simplify first
   fprintf(stderr, "Checking compatibility...\n");
   fprintf(stderr, "Removing rows and columns of zeros...\n");
@@ -814,7 +815,7 @@ int arecompat(int **imat1, int **imat2, int n, int m, int q){
   printmat(imat1b, n2, m2);
   printmat(imat2b, n2, m2);
   fprintf(stderr, "Checking if matrix and sign-pattern are compatible...\n");
-  flag=mat_signpat_compat(imat1b, imat2b, n2, m2, q);
+  flag=mat_signpat_compat(imat1b, imatrank, imat2b, n2, m2, q);
 
   if(flag==3)
     fprintf(stderr, "Finished checking compatibility: matrix and sign-pattern are compatible and r-strongly compatible.\n---------------------------------------\n");
@@ -1922,15 +1923,15 @@ int mats_compat(int **imat1, int **imat2, int n, int m, int q){
   int rscmpt=1; // r-strongly compatible
   int **imat1a, **imat2a;
   int n1, m1;
-  int tt,imatrank;
+  int tt, imatrank;
   bool posprod=0;
 
   fprintf(stderr, "Checking if matrices are compatible.\n\n");
 
+  imatrank=matrank(imat1,n,m); //before simplification which can reduce rank
   simppair(imat1, imat2, n, m, &imat1a, &imat2a, &n1, &m1); // imat2a is sparser
   printmat(imat1a, n1, m1);printmat(imat2a, n1, m1);
 
-  imatrank=matrank(imat1a,n1,m1);
   r=imatrank;
   rmin=1;
 
@@ -4442,9 +4443,10 @@ long comb(int n, int k){
   int i,j,ind1=2;
   long combx=1;
   int inds[n-k];
-  for(i=0;i<n-k;i++){
+  if(k>n)
+    return 0;
+  for(i=0;i<n-k;i++)
     inds[i]=1;
-  }
   j=ind1;
   for(i=k+1; i<=n ; i++ ){//fprintf(stderr, "%d*%d\t", combx, i);
     combx *= i;
@@ -5872,7 +5874,7 @@ int analysereacs(const char fname[], int q, bool htmlswitch){
     fprintf(stderr, "\n_________________________________\n\n");
 
 
-    if(allgood==1){ // no reactants on both sides
+    if(allgood && allrev){ // no reactants on both sides and all reversible
       imat1a=redmat(imat1, nlen, mlen, &mlena);//remove redundant cols
       csdflag=isCSD(imat1a, nlen, mlena, q);
       if(csdflag!=2){
@@ -5991,11 +5993,11 @@ int analysereacs(const char fname[], int q, bool htmlswitch){
     imat1a=redmat(imat1, nlen, mlen, &mlena);//remove redundant cols
 
     if(mlena!=mlen){
-      fprintf(stderr, "WARNING: This matrix appears to have redundant columns. Assuming that this is a stoichiometric matrix (rank = %d), that no reactants appear on both sides of a reaction, and that all reactions may or may not be irreversible. If you aren't happy with these assumptions, use the reaction format rather than the matrix format. Will use the following matrix for analysis:\n",matrank(imat1, nlen, mlen));
+      fprintf(stderr, "WARNING: This matrix appears to have redundant columns. Assuming that this is a stoichiometric matrix (rank = %d), that no reactants appear on both sides of a reaction, and that all reactions are reversible. If you aren't happy with these assumptions, use the reaction format rather than the matrix format. Will use the following matrix for analysis:\n",matrank(imat1, nlen, mlen));
       printmat(imat1a, nlen, mlena);
     }
     else{
-      fprintf(stderr, "WARNING: Assuming that this is a stoichiometric matrix (rank = %d), that no reactants appear on both sides of a reaction, and that all reactions may or may not be irreversible. If you aren't happy with these assumptions, use the reaction format rather than the matrix format.\n",matrank(imat1, nlen, mlen));
+      fprintf(stderr, "WARNING: Assuming that this is a stoichiometric matrix (rank = %d), that no reactants appear on both sides of a reaction, and that all reactions are reversible. If you aren't happy with these assumptions, use the reaction format rather than the matrix format.\n",matrank(imat1, nlen, mlen));
       printmat(imat1a, nlen, mlena);
     }
 
