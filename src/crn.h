@@ -5,6 +5,7 @@
 #include <time.h> /* for random seeding */
 #include <ctype.h>
 #include <ginac/ginac.h>
+#include <glpk.h>
 #include <iostream>
 #include <fstream>
 using namespace std;
@@ -17,6 +18,7 @@ using namespace GiNaC;
 #define max(A, B) ((A) > (B) ? (A) : (B))
 #define min(A, B) ((A) < (B) ? (A) : (B))
 
+bool unordlistareeq(int *a, int na, int *b, int nb);
 int **imatrix(long nrl, long nrh, long ncl, long nch);
 void free_imatrix(int **m, long nrl, long nrh, long ncl, long nch);
 int **submat1(int **imat, int n, int i1, int i2);
@@ -83,7 +85,7 @@ int chemgts2(char *s, char ***v, char sep);
 int freearraydat(char **array, int lim);
 int addv1(int k, char *s, char ***t);
 int isinarray(char *v[], int numv, char *s);
-int getallreacs(char *str, int ***imat1, int ***imat2, int ***imat3, int ***imat4, char ***chems, int *n, int *m, int *cols3, int *allrev, int *allgood);
+int getallreacs(char *str, int ***imat1, int ***imat2, int ***imat3, int ***imat4, int ***stoichl, int ***stoichr, char ***chems, int *n, int *m, int *cols3, int *allrev, int *allgood);
 int analysereacs(const char fname[], int q, bool htmlswitch);
 int fixedminorcompat(int **imat1, int **imat2, int n, int m, int *vec1, int *vec2, int k);
 int allminorsigns(int **imat1, int **imat2, int n, int m, int q);

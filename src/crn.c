@@ -636,11 +636,11 @@ int submat_signpat_compat(int **imat1, int **imat2, int n, int m, int *vec1, int
       }
     }
   }
-  if(dt*tm1<0){ // opp signs 
+  if(dt*tm1<0){ // opp signs: keep track of this info
     free_imatrix(pms,0, fk-1, 0, k);
-    return 0;
+    return -1;
   }
-  else if(dt*tm1>0){ // a nonzero product: keep track of this info
+  else if(dt*tm1>0){ // a positive product: keep track of this info
     free_imatrix(pms,0, fk-1, 0, k);
     return 2;
   }
@@ -656,7 +656,7 @@ int submat_signpat_compat(int **imat1, int **imat2, int n, int m, int *vec1, int
 /* flag = 1 means the matrices are r-strongly compatible but not compatible */
 /* flag = 0 means the matrices are none of the above */
 
-int mat_signpat_compat(int **imat1, int imatrank, int **imat2, int n, int m, int q){
+int mat_signpat_compat0(int **imat1, int imatrank, int **imat2, int n, int m, int q){
   int k;
   long r1, r2, cnk, cmk;
   int **xcombs;
@@ -671,13 +671,15 @@ int mat_signpat_compat(int **imat1, int imatrank, int **imat2, int n, int m, int
     xcombs=allcombsgen(n,k);
     ycombs=allcombsgen(m,k);
     cnk=comb(n, k);cmk=comb(m, k);
-    fprintf(stderr, "\nchecking %.0f minors of size %d...\n", ((double) cnk)*((double) (cmk)), k);
+    if(n+m>15){
+      fprintf(stderr, "\nchecking %.0f minors of size %d...\n", ((double) cnk)*((double) (cmk)), k);
+    }
     for(r1=0;r1<cnk;r1++){
-      if(r1%100==0)
+      if(r1%100==0 && (n+m>15))
 	fprintf(stderr, ".");
       for(r2=0;r2<cmk;r2++){
 	flg=submat_signpat_compat(imat1, imat2, n, m, xcombs[r1], ycombs[r2], k);
-	if(!flg){ // fail to be compatible: return 1 or 0
+	if(flg<=0){ // fail to be compatible: return 1 or 0
 	  fprintf(stderr, "\nnumerical/pattern submatrices which fail to be compatible:\n\n");
 	  printsubmat(imat1, xcombs[r1], ycombs[r2], k, k);
 	  fprintf(stderr, "*** and ***\n");
@@ -700,6 +702,61 @@ int mat_signpat_compat(int **imat1, int imatrank, int **imat2, int n, int m, int
 
   return flag;
 }
+
+// are a matrix and sign pattern negative r-compatible
+
+int mat_signpat_negr_compat(int **imat1, int imatrank, int **imat2, int n, int m, int q){
+  int k=imatrank;
+  long r1, r2, cnk, cmk;
+  int **xcombs;
+  int **ycombs;
+  int flag=1, flg;
+  int posprod=0;
+  fprintf(stderr, "\nChecking negative compatibility...\n");
+  xcombs=allcombsgen(n,k);
+  ycombs=allcombsgen(m,k);
+  cnk=comb(n, k);cmk=comb(m, k);
+  fprintf(stderr, "\nchecking %.0f minors of size %d...\n", ((double) cnk)*((double) (cmk)), k);
+  for(r1=0;r1<cnk;r1++){
+    if(r1%100==0)
+      fprintf(stderr, ".");
+    for(r2=0;r2<cmk;r2++){
+      flg=submat_signpat_compat(imat1, imat2, n, m, xcombs[r1], ycombs[r2], k);
+      if(flg!=-1 && flg!=1){// fail to be negatively compatible
+	fprintf(stderr, "\nnumerical/pattern submatrices which fail to be negatively compatible:\n\n");
+	printsubmat(imat1, xcombs[r1], ycombs[r2], k, k);
+	fprintf(stderr, "*** and ***\n");
+	printsubmat(imat2, xcombs[r1], ycombs[r2], k, k);
+	flag=0;
+	if(q){
+	  free_imatrix(xcombs, 0, cnk-1, 0, k-1);
+	  free_imatrix(ycombs, 0, cmk-1, 0, k-1);
+	  return flag;
+	}
+      }
+      else if(flg==-1)
+	posprod=1;
+    }
+  }
+  free_imatrix(xcombs, 0, cnk-1, 0, k-1);
+  free_imatrix(ycombs, 0, cmk-1, 0, k-1);
+
+  if(flag && posprod)
+    return 1;
+  return 0;
+}
+
+// wrapper for mat_signpat_compat0
+
+int mat_signpat_compat(int **imat1, int imatrank, int **imat2, int n, int m, int q){
+  int flg=mat_signpat_compat0(imat1, imatrank, imat2, n, m, q);
+  if(flg)
+    return flg;
+  else if(mat_signpat_negr_compat(imat1, imatrank, imat2, n, m, q))
+    return -1;
+  return 0;
+}
+
 
 // are two matrices compatible - only check largest minors
 
@@ -724,7 +781,7 @@ int mat_signpat_compat1(int **imat1, int **imat2, int n, int m, int q){
   for(r1=0;r1<cnk;r1++){
     fprintf(stderr, "r1/cnk = %.0f/%.0f\n", (double)r1, (double)cnk);
     for(r2=0;r2<cmk;r2++){
-      if(!submat_signpat_compat(imat1, imat2, n, m, xcombs[r1], ycombs[r2], k)){
+      if(submat_signpat_compat(imat1, imat2, n, m, xcombs[r1], ycombs[r2], k)<=0){
 	fprintf(stderr, "\npair of submatrices which fail to be compatible:\n\n");
 	printsubmat(imat1, xcombs[r1], ycombs[r2], k, k);
 	fprintf(stderr, "*** and ***\n");
@@ -741,55 +798,6 @@ int mat_signpat_compat1(int **imat1, int **imat2, int n, int m, int q){
   }
   free_imatrix(xcombs, 0, cnk-1, 0, k-1);
   free_imatrix(ycombs, 0, cmk-1, 0, k-1);
-
-
-  return flag;
-}
-
-//
-// are two matrices compatible - only check minors
-// of size equal to rank of the first matrix
-//
-
-int mat_signpat_compat2(int **imat1, int **imat2, int n, int m, int q){
-  int k;
-  long r1, r2, cnk, cmk;
-  int **xcombs;
-  int **ycombs;
-  int flag=1,flg=0;
-
-  k=matrank(imat1, n,m);
-
-  fprintf(stderr, "Rank of first matrix: %d.\n", k);
-
-  xcombs=allcombsgen(n,k);
-  ycombs=allcombsgen(m,k);
-  cnk=comb(n, k);
-  cmk=comb(m, k);
-  //fprintf(stderr, "cnk= %.0f, cmk = %.0f\n", (double) cnk, (double)cmk);
-  for(r1=0;r1<cnk;r1++){
-    //fprintf(stderr, "r1/cnk = %.0f/%.0f\n", (double)r1, (double)cnk);
-    for(r2=0;r2<cmk;r2++){
-      flg=submat_signpat_compat(imat1, imat2, n, m, xcombs[r1], ycombs[r2], k);
-      if(!flg){
-	fprintf(stderr, "\npair of %d X %d submatrices which fail to be compatible:\n\n", k, k);
-	printsubmat(imat1, xcombs[r1], ycombs[r2], k, k);
-	fprintf(stderr, "*** and ***\n");
-	printsubmat(imat2, xcombs[r1], ycombs[r2], k, k);
-	flag=0; // exit here for speed
-	if(q){
-	  free_imatrix(xcombs, 0, cnk-1, 0, k-1);
-	  free_imatrix(ycombs, 0, cmk-1, 0, k-1);
-	  return 0;
-	}
-      }
-      else if(flg==2 && flag==1) // a strictly positive product
-	flag=2;
-    }
-  }
-  free_imatrix(xcombs, 0, cnk-1, 0, k-1);
-  free_imatrix(ycombs, 0, cmk-1, 0, k-1);
-
 
   return flag;
 }
@@ -823,8 +831,10 @@ int arecompat(int **imat1, int **imat2, int n, int m, int q){
     fprintf(stderr, "Finished checking compatibility: matrix and sign-pattern are compatible but not r-strongly compatible.\n---------------------------------------\n");
   else if(flag==1)
     fprintf(stderr, "Finished checking compatibility: matrix and sign-pattern are r-strongly compatible but not compatible.\n---------------------------------------\n");
+  else if(flag==-1)
+    fprintf(stderr, "Finished checking negative compatibility: matrix and sign-pattern are r-strongly negatively compatible.\n---------------------------------------\n");
   else
-    fprintf(stderr, "Finished checking compatibility: matrix and sign-pattern are not compatible or r-strongly compatible.\n---------------------------------------\n");
+    fprintf(stderr, "Finished checking compatibility: matrix and sign-pattern are not compatible or r-strongly compatible or r-strongly negatively compatible.\n---------------------------------------\n");
 
   free_imatrix(imat1a, 0, n1-1, 0, m1-1);
   free_imatrix(imat2a, 0, n1-1, 0, m1-1);
@@ -1913,7 +1923,7 @@ int isWSD1(int **imat, int n, int m, bool allm, int *rkbad, int q){
 /* flag = 1 means the matrices are r-strongly compatible but not compatible */
 /* flag = 0 means the matrices are none of the above */
 
-int mats_compat(int **imat1, int **imat2, int n, int m, int q){
+int mats_compat0(int **imat1a, int imatrank, int **imat2a, int n1, int m1, int q){
   int k;
   int r,rmin,s1,s2;
   long r1,r2,cnk,cmk;
@@ -1921,16 +1931,8 @@ int mats_compat(int **imat1, int **imat2, int n, int m, int q){
   int **ycombs;
   int cmpt=1; // compatible
   int rscmpt=1; // r-strongly compatible
-  int **imat1a, **imat2a;
-  int n1, m1;
-  int tt, imatrank;
+  int tt;
   bool posprod=0;
-
-  fprintf(stderr, "Checking if matrices are compatible.\n\n");
-
-  imatrank=matrank(imat1,n,m); //before simplification which can reduce rank
-  simppair(imat1, imat2, n, m, &imat1a, &imat2a, &n1, &m1); // imat2a is sparser
-  printmat(imat1a, n1, m1);printmat(imat2a, n1, m1);
 
   r=imatrank;
   rmin=1;
@@ -1968,19 +1970,11 @@ int mats_compat(int **imat1, int **imat2, int n, int m, int q){
 	  if(q){
 	    free_imatrix(xcombs, 0, cnk-1, 0, k-1);
 	    free_imatrix(ycombs, 0, cmk-1, 0, k-1);
-	    if(imat1a)
-	      free_imatrix(imat1a, 0, n1-1, 0, m1-1);
-	    if(imat2a)
-	      free_imatrix(imat2a, 0, n1-1, 0, m1-1);
 
-	    if(rscmpt==0){ // not r-strongly
-	      fprintf(stderr, "Finished checking if matrices are compatible: matrices are not compatible or r-strongly compatible.\n---------------------------------------\n");
+	    if(rscmpt==0) // not r-strongly
 	      return 0;
-	    }
-	    else{
-	      fprintf(stderr, "Finished checking if matrices are compatible: matrices are r-strongly compatible but not compatible.\n---------------------------------------\n");
+	    else
 	      return 1;
-	    }
 	  }
 	}
 	else if(tt>0 && k==imatrank){
@@ -1996,30 +1990,119 @@ int mats_compat(int **imat1, int **imat2, int n, int m, int q){
       rscmpt=0;
   }
 
-  if(imat1a)
-    free_imatrix(imat1a, 0, n1-1, 0, m1-1);
-  if(imat2a)
-    free_imatrix(imat2a, 0, n1-1, 0, m1-1);
-
-  if(rscmpt && cmpt){ // both succeeded
-    fprintf(stderr, "Finished checking if matrices are compatible: matrices are compatible and r-strongly compatible.\n---------------------------------------\n");
+  if(rscmpt && cmpt)
     return 3;
-  }
-  else if(rscmpt && !cmpt){
-    fprintf(stderr, "Finished checking if matrices are compatible: matrices are r-strongly compatible, but not compatible.\n---------------------------------------\n");
+  else if(rscmpt && !cmpt)
     return 1;
-  }
-  else if(!rscmpt && cmpt){
-    fprintf(stderr, "Finished checking if matrices are compatible: matrices are compatible but not r-strongly compatible.\n---------------------------------------\n");
+  else if(!rscmpt && cmpt)
     return 2;
-  }
-  else{
-    fprintf(stderr, "Finished checking if matrices are compatible: matrices are not compatible or r-strongly compatible.\n---------------------------------------\n");
-    return 0;
-  }
-
+  return 0;
 
 }
+
+// are two matrices r-strongly negatively compatible?
+
+int mats_negr_compat(int **imat1a, int imatrank, int **imat2a, int n1, int m1){
+  int k, s1,s2;
+  long r1,r2,cnk,cmk;
+  int **xcombs;
+  int **ycombs;
+  int tt;
+  bool posprod=0;
+
+  k=imatrank;
+  xcombs=allcombsgen(n1,k);
+  ycombs=allcombsgen(m1,k);
+  cnk=comb(n1,k);cmk=comb(m1,k);
+  for(r1=0;r1<cnk;r1++){
+    for(r2=0;r2<cmk;r2++){
+      //	fprintf(stderr, "in here\n");
+      if((tt=fixedminorcompat(imat1a, imat2a, n1, m1, xcombs[r1], ycombs[r2],k)) > 0){ // always fail immediately
+	fprintf(stderr, "\npair of submatrices with determinants of same sign:\n\n");
+	for(s1=0;s1<k;s1++){
+	  for(s2=0;s2<k;s2++)
+	    fprintf(stderr, "%2d  ",imat1a[xcombs[r1][s1]][ycombs[r2][s2]]);
+	  fprintf(stderr, "\n");
+	}
+	fprintf(stderr, "*** and ***\n");
+	for(s1=0;s1<k;s1++){
+	  for(s2=0;s2<k;s2++)
+	    fprintf(stderr, "%2d  ",imat2a[xcombs[r1][s1]][ycombs[r2][s2]]);
+	  fprintf(stderr, "\n");
+	}
+
+	for(s1=0;s1<k;s1++){
+	  fprintf(stderr, "[ ");
+	  for(s2=0;s2<k;s2++)
+	    fprintf(stderr, "%d,%d  ",xcombs[r1][s1],ycombs[r2][s2]);
+	  fprintf(stderr, "]\n");
+	}
+
+	fprintf(stderr, "_____________________\n\n");
+
+	free_imatrix(xcombs, 0, cnk-1, 0, k-1);
+	free_imatrix(ycombs, 0, cmk-1, 0, k-1);
+	return 0;
+      }
+      else if(tt<0)
+	posprod=1;
+    }
+  }
+
+  free_imatrix(xcombs, 0, cnk-1, 0, k-1);
+  free_imatrix(ycombs, 0, cmk-1, 0, k-1);
+
+  if(posprod)
+    return 1;
+
+  return 0;
+
+}
+
+// Wrapper for mats_compat0 and mats_negr_compat
+
+int mats_compat(int **imat1, int **imat2, int n, int m, int q){
+  int flg, imatrank;
+  int **imat1a, **imat2a;
+  int n1,m1;
+
+  imatrank=matrank(imat1,n,m);
+  fprintf(stderr, "Checking if (stoich and exp) matrices are compatible.\n\n");
+  simppair(imat1, imat2, n, m, &imat1a, &imat2a, &n1, &m1); // imat2a is sparser
+  printmat(imat1a, n1, m1);printmat(imat2a, n1, m1);
+
+  flg=mats_compat0(imat1a, imatrank, imat2a, n1, m1, q);
+  if(flg){
+    free_imatrix(imat1a, 0, n1-1, 0, m1-1);
+    free_imatrix(imat2a, 0, n1-1, 0, m1-1);
+    if(flg==3){ // both succeeded
+      fprintf(stderr, "Finished checking if (stoich and exp) matrices are compatible: matrices are compatible and r-strongly compatible.\n---------------------------------------\n");
+      return 3;
+    }
+    else if(flg==1){
+      fprintf(stderr, "Finished checking if (stoich and exp) matrices are compatible: matrices are r-strongly compatible, but not compatible.\n---------------------------------------\n");
+      return 1;
+    }
+    else if(flg==2){
+      fprintf(stderr, "Finished checking if (stoich and exp) matrices are compatible: matrices are compatible but not r-strongly compatible.\n---------------------------------------\n");
+      return 2;
+    }
+    return flg;
+  }
+
+
+  flg=mats_negr_compat(imat1a, imatrank, imat2a, n1, m1);
+  free_imatrix(imat1a, 0, n1-1, 0, m1-1);
+  free_imatrix(imat2a, 0, n1-1, 0, m1-1);
+  if(flg){
+    fprintf(stderr, "Finished checking if (stoich and exp) matrices are compatible: matrices are r-strongly negatively compatible.\n---------------------------------------\n");
+    return -1;
+  }
+  fprintf(stderr, "Finished checking if (stoich and exp) matrices are compatible: matrices are not compatible or r-strongly compatible or r-strongly negatively compatible.\n---------------------------------------\n");
+
+  return 0;
+}
+
 
 // the Mass-action Jacobian is sign nonsingular
 
@@ -2565,8 +2648,6 @@ int addtwointstr(int k, int *s, int *s1, int len1, int len2, int ***t)
   return k;
 }
 
-
-
 int addtwosignedintstr(int k, int *s, int *s1, int len1, int len2, int sgn, int ***t)
      /* routine to check if an integer string already belongs to a list of strings, and if not to add it to the end. Returns new free position in the list. */
 {
@@ -2629,6 +2710,204 @@ int addtwosignedintstr(int k, int *s, int *s1, int len1, int len2, int sgn, int 
   }
   return k;
 }
+
+int addintstr(int k, int *s, int len1, int ***t, int *ind)
+     /* routine to check if an integer string already belongs to a list of strings, and if not to add it to the end. Returns new free position in the list. all strings have length len1 */
+{
+  int i=0,j=0, flag;
+  (*ind)=0;
+  if(k==0){
+    (*t) = (int**) malloc(sizeof(int*) * 1);
+    (*t)[k] = (int*) malloc(sizeof(int) * (len1));
+    for(i=0;i<len1;i++)
+      (*t)[k][i] = s[i];
+    return k+1;
+  }
+
+  flag=0;
+  while(j<k){
+    //    printvec(s, len1); printvec(s1, len2);printvec((*t)[j], (*t)[j][0]+(*t)[j][1]+2);
+    flag=1;
+    for(i=0;i<len1;i++){
+      if((*t)[j][i]!=s[i]){
+	flag=0;
+	break;
+      }
+    }
+    if(flag){ // found
+      (*ind)=j;
+      break;
+    }
+    j++;
+  }
+
+  if(!flag){//not found
+    //    fprintf(stderr, "not found: %d\n", k);
+    //    printvec(s, len1);printvec(s1,len2);
+    (*t)=(int**) realloc((*t), sizeof(int*) *(k+1));
+    (*t)[k] = (int*) malloc(sizeof(int) * (len1));
+    for(i=0;i<len1;i++)
+      (*t)[k][i] = s[i];
+    (*ind)=k;
+    return k+1;
+  }
+  return k;
+}
+
+int addoneintstr(int k, int *s, int len1, int ***t)
+     /* routine to check if an integer string already belongs to a list of strings, and if not to add it to the end. Returns new free position in the list. The first entry of each member of the list is the length of the string*/
+{
+  int i=0,j=0, flag;
+
+  if(k==0){
+    (*t) = (int**) malloc(sizeof(int*) * 1);
+    (*t)[k] = (int*) malloc(sizeof(int) * (len1+1));
+    (*t)[k][0] = len1;
+    for(i=1;i<1+len1;i++)
+      (*t)[k][i] = s[i-1];
+    return k+1;
+  }
+
+  flag=0;
+  while(j<k){
+    //    printvec(s, len1); printvec(s1, len2);printvec((*t)[j], (*t)[j][0]+(*t)[j][1]+2);
+    flag=1;
+    if(len1!=(*t)[j][0]){
+      j++;flag=0;continue;
+    }
+    for(i=1;i<1+len1;i++){
+      if((*t)[j][i]!=s[i-1]){
+	flag=0;
+	break;
+      }
+    }
+    if(flag) // found
+      break;
+    j++;
+  }
+
+  if(!flag){//not found
+    //    fprintf(stderr, "not found: %d\n", k);
+    //    printvec(s, len1);printvec(s1,len2);
+    (*t)=(int**) realloc((*t), sizeof(int*) *(k+1));
+    (*t)[k] = (int*) malloc(sizeof(int) * (len1+1));
+    (*t)[k][0] = len1;
+    for(i=1;i<1+len1;i++)
+      (*t)[k][i] = s[i-1];
+    return k+1;
+  }
+  return k;
+}
+
+// Is the ordered int list A a subset of the ordered int list B?
+
+bool AsubsB(int *A, int szA, int *B, int szB){
+  int lastfree=0;
+  int i,j;
+  bool flg;
+
+  if(szA > szB)
+    return 0;
+
+  //  printvec(A,szA);  printvec(B,szB);
+  for(i=0;i<szA;i++){
+    if(lastfree>=szB)// off the end of superset
+      return 0;
+    for(j=lastfree;j<szB;j++){
+      if(B[j]>A[i])
+	return 0;
+      if(B[j]==A[i]){
+	lastfree=j+1;
+	flg=1;
+	break;
+      }
+    }
+    if(!flg)
+      return 0;
+  }
+  return 1;
+}
+
+// Check if the set subs of size n1 is a siphon
+// by examining the irreversible stoichiometric matrix
+// and the matrix of powers
+
+bool issiphon(int **S,int **M,int n,int m,int *subs,int n1){
+  int i,j,k;
+  int **tmp=cpmat(S,n,m);
+  for(i=0;i<n1;i++){// each  member of the siphon
+    for(j=0;j<m;j++){
+      if(M[subs[i]][j]!=0){//substrate affects reac rate
+	//set column of S to zero
+	for(k=0;k<n;k++)
+	  tmp[k][j]=0;
+      }
+    }
+  }
+  for(i=0;i<n1;i++){
+    for(j=0;j<m;j++){
+      if(tmp[subs[i]][j]!=0){// row not wiped out
+	free_imatrix(tmp, 0, n, 0, m-1);
+	return 0;
+      }
+    }
+  }
+
+  free_imatrix(tmp, 0, n, 0, m-1);
+  return 1;
+}
+
+int checksiphons(int **mat1, int **mat2, int n, int m, int ***allsiphons, int *totminsiphons, int ***allminsiphons){
+
+  int j,k;
+  bool flg=0;
+  int **xcombs;
+  long i,cnk;
+  int totsiphons=0;
+  (*totminsiphons)=0;
+
+  for(k=1;k<n;k++){// each dimension
+    xcombs=allcombsgen(n,k);
+    cnk=comb(n,k);
+    for(i=0;i<cnk;i++){//each subset
+
+      if(issiphon(mat1,mat2,n,m,xcombs[i],k)){
+	// add to minimal list if poss.
+	flg=1;
+	for(j=0;j<totsiphons;j++){//each existing siphon
+	  if(AsubsB((*allsiphons)[j]+1,(*allsiphons)[j][0],xcombs[i],k)){
+	    flg=0;break;//not minimal
+	  }
+	}
+	if(flg)
+	  (*totminsiphons)=addoneintstr((*totminsiphons),xcombs[i],k,allminsiphons);
+	// add to siphon list
+	totsiphons=addoneintstr(totsiphons,xcombs[i],k,allsiphons);
+      }
+    }
+    free_imatrix(xcombs, 0, cnk-1, 0, k-1);
+  }
+
+
+  /* fprintf(stderr, "totsiphons=%d\n", totsiphons); */
+  /* for(j=0;j<totsiphons;j++){//each siphon */
+  /*   for(k=1;k<=(*allsiphons)[j][0];k++) */
+  /*     fprintf(stderr, "%d ", (*allsiphons)[j][k]); */
+  /*   fprintf(stderr, "\n"); */
+  /* } */
+
+  /* fprintf(stderr, "totminsiphons=%d\n", *totminsiphons); */
+  /* for(j=0;j<(*totminsiphons);j++){//each siphon */
+  /*   for(k=1;k<=(*allminsiphons)[j][0];k++) */
+  /*     fprintf(stderr, "%d ", (*allminsiphons)[j][k]); */
+  /*   fprintf(stderr, "\n"); */
+  /* } */
+  return totsiphons;
+
+
+}
+
+
 
 // remove vertices of degree 1 and their unique neighbour.
 // do this recursively until there is no change
@@ -4171,6 +4450,14 @@ int **imatrix(long nrl, long nrh, long ncl, long nch)
   return m;
 }
 
+void free_imat(int **A, int numA){
+  int i;
+  for(i=0;i<numA;i++)
+    free ((char *)(A[i]));
+  if(A)
+    free((char *) A);
+}
+
 void free_imatrix(int **m, long nrl, long nrh, long ncl, long nch)
 /* free an int matrix allocated by imatrix() */
 {
@@ -4594,6 +4881,8 @@ void printexmat(matrix imat, int n, int m){
   cout << endl;
   return;
 }
+
+
 
 void printsubmat(int **imat, int *vec1, int *vec2, int k1, int k2){
   int i,j;
@@ -5130,8 +5419,10 @@ int isreac(char *str){
 // imat2 is the pattern matrix of V
 // imat3 is the irreversible stoichiometric matrix
 // imat4 is the corresponding matrix of powers (assuming mass action)
+// stoichl is the left stoichiometric matrix
+// stoichr is the right stoichiometric matrix
 
-int getallreacs(char *str, int ***imat1, int ***imat2, int ***imat3, int ***imat4, char ***chems, int *n, int *m, int *cols3, int *allrev, int *allgood){
+int getallreacs(char *str, int ***imat1, int ***imat2, int ***imat3, int ***imat4, int ***stoichl, int ***stoichr, char ***chems, bool *haszerocomplex, int *n, int *m, int *cols3, int *allrev, int *allgood){
 
   long pos=0;
   int pos1;
@@ -5166,12 +5457,11 @@ int getallreacs(char *str, int ***imat1, int ***imat2, int ***imat3, int ***imat
       else
 	irrcols+=2;
 
-      for(i=0;i<numleft;i++){
+      for(i=0;i<numleft;i++)
 	totchems= addv1(totchems, leftchems[i], chems);
-      }
-      for(i=0;i<numright;i++){
+      for(i=0;i<numright;i++)
 	totchems= addv1(totchems, rightchems[i], chems);
-      }
+
       freearraydat(leftchems, numleft);
       freearraydat(rightchems, numright);
       free((FREE_ARG) (leftstoics));
@@ -5190,6 +5480,8 @@ int getallreacs(char *str, int ***imat1, int ***imat2, int ***imat3, int ***imat
   (*imat2)=imatrix(0, (*n)-1, 0, (*m)-1);
   (*imat3)=imatrix(0, (*n)-1, 0, irrcols-1);
   (*imat4)=imatrix(0, (*n)-1, 0, irrcols-1);
+  (*stoichl)=imatrix(0, (*n)-1, 0, irrcols-1);
+  (*stoichr)=imatrix(0, (*n)-1, 0, irrcols-1);
 
 
   //pass two
@@ -5199,9 +5491,10 @@ int getallreacs(char *str, int ***imat1, int ***imat2, int ***imat3, int ***imat
   while(strcmp(line, "")!=0){
     if(!iscomline(line) && isreac(line)){
       getreac(line, &leftchems, &leftstoics, &numleft, &rightchems, &rightstoics, &numright, &rev);
+      if(numleft==0||numright==0)
+	(*haszerocomplex)=1;
 
       for(i=0;i<(*n);i++){
-
 	lstoic=0;pos1=0;
 	while(pos1<numleft){
 	  if((ind=isinarray(leftchems+pos1, numleft-pos1, (*chems)[i]))>=0){
@@ -5224,25 +5517,39 @@ int getallreacs(char *str, int ***imat1, int ***imat2, int ***imat3, int ***imat
 	    pos1=numright;
 	}
 
+	if(rev){
+	  (*stoichl)[i][numcols]=lstoic;
+	  (*stoichl)[i][numcols+1]=rstoic;
+	  (*stoichr)[i][numcols]=rstoic;
+	  (*stoichr)[i][numcols+1]=lstoic;
+	}
+	else{
+	  (*stoichl)[i][numcols]=lstoic;
+	  (*stoichr)[i][numcols]=rstoic;
+	}
+
 	if(lstoic>0 && rstoic > 0){ // on both sides of reac
 	  (*allgood)=0;
 	  (*imat1)[i][numlines]=rstoic-lstoic;
 	  if(rev==1){
 	    (*imat2)[i][numlines]=2;
 	    (*imat3)[i][numcols]=rstoic-lstoic;
-	    (*imat4)[i][numcols]=-lstoic;
 	    (*imat3)[i][numcols+1]=-rstoic+lstoic;
+	    (*imat4)[i][numcols]=-lstoic;
 	    (*imat4)[i][numcols+1]=-rstoic;
+
 	    //	    (*imat4)[i][numcols+1]=-rightstoics[ind];
 	  }
 	  else{
 	    (*imat2)[i][numlines]=-1;
 	    (*imat3)[i][numcols]=rstoic-lstoic;
 	    (*imat4)[i][numcols]=-lstoic;
+	    (*stoichl)[i][numcols]=lstoic;
+	    (*stoichr)[i][numcols]=rstoic;
 	  }
 
 	}
-	else if(lstoic>0){ // on left
+	else if(lstoic>0){ // only on left
 	  (*imat1)[i][numlines]=-lstoic;
 	  (*imat2)[i][numlines]=-1;
 	  if(rev==1){
@@ -5256,7 +5563,7 @@ int getallreacs(char *str, int ***imat1, int ***imat2, int ***imat3, int ***imat
 	    (*imat4)[i][numcols]=-lstoic;
 	  }
 	}
-	else if(rstoic>0){ // on right
+	else if(rstoic>0){ // only on right
 	  (*imat1)[i][numlines]=rstoic;
 	  if(rev==1){
 	    (*imat2)[i][numlines]=1;
@@ -5422,70 +5729,48 @@ int ispureint(char *s){
 
 int getreac(char *str, char ***leftchems, int **leftstoics, int *numleft, char ***rightchems, int **rightstoics, int *numright, int *rev){
   char *p, *left, *right;
-  int j;
+  int j,sp;
   char **v1;
   char **tmp;
   int num1;
   int flag=1;
-  if((p=strstr(str, "<-->")) || (p=strstr(str, "<==>"))){
+  if((p=strstr(str, "<-->")) || (p=strstr(str, "<==>")) || (p=strstr(str, "<->"))|| (p=strstr(str, "<=>")) || (p=strstr(str, "<>"))){
+    if(strstr(p,"<-->") || strstr(p,"<==>"))
+      sp=4;
+    else if(strstr(p,"<->") || strstr(p,"<=>"))
+      sp=3;
+    else
+      sp=2;
     j=strlen(str)-strlen(p);
-    right=strdup(str+j+4);
+    right=strdup(str+j+sp);
     left=strdup(str);
     left[j]=0;
     (*rev)=1;
   }
-  else if((p=strstr(str, "<->"))|| (p=strstr(str, "<=>"))){
+  else if((p=strstr(str, "-->")) || (p=strstr(str, "==>")) || (p=strstr(str, "->")) || (p=strstr(str, "=>")) || (p=strstr(str, ">"))){
+    if(strstr(p,"-->") || strstr(p,"==>"))
+      sp=3;
+    else if(strstr(p,"->") || strstr(p,"=>"))
+      sp=2;
+    else
+      sp=1;
+
     j=strlen(str)-strlen(p);
-    right=strdup(str+j+3);
-    left=strdup(str);
-    left[j]=0;
-    (*rev)=1;
-  }
-  else if((p=strstr(str, "<>"))){
-    j=strlen(str)-strlen(p);
-    right=strdup(str+j+2);
-    left=strdup(str);
-    left[j]=0;
-    (*rev)=1;
-  }
-  else if((p=strstr(str, "-->")) || (p=strstr(str, "==>"))){
-    j=strlen(str)-strlen(p);
-    right=strdup(str+j+3);
+    right=strdup(str+j+sp);
     left=strdup(str);
     left[j]=0;
     (*rev)=0;
   }
-  else if((p=strstr(str, "->")) || (p=strstr(str, "=>"))){
+  else if((p=strstr(str, "<--")) || (p=strstr(str, "<==")) || (p=strstr(str, "<-")) || (p=strstr(str, "<=")) || (p=strstr(str, "<"))){
+    if(strstr(p,"<--") || strstr(p,"<=="))
+      sp=3;
+    else if(strstr(p,"<-") || strstr(p,"<="))
+      sp=2;
+    else
+      sp=1;
+
     j=strlen(str)-strlen(p);
-    right=strdup(str+j+2);
-    left=strdup(str);
-    left[j]=0;
-    (*rev)=0;
-  }
-  else if((p=strstr(str, ">"))){
-    j=strlen(str)-strlen(p);
-    right=strdup(str+j+1);
-    left=strdup(str);
-    left[j]=0;
-    (*rev)=0;
-  }
-  else if((p=strstr(str, "<--")) || (p=strstr(str, "<=="))){
-    j=strlen(str)-strlen(p);
-    left=strdup(str+j+3);
-    right=strdup(str);
-    right[j]=0;
-    (*rev)=0;
-  }
-  else if((p=strstr(str, "<-")) || (p=strstr(str, "<="))){
-    j=strlen(str)-strlen(p);
-    left=strdup(str+j+2);
-    right=strdup(str);
-    right[j]=0;
-    (*rev)=0;
-  }
-  else if((p=strstr(str, "<"))){
-    j=strlen(str)-strlen(p);
-    left=strdup(str+j+1);
+    left=strdup(str+j+sp);
     right=strdup(str);
     right[j]=0;
     (*rev)=0;
@@ -5775,10 +6060,971 @@ int strmatisCSD(char *fname, int q){
 
 }
 
+bool structpersist(int **imat3, int nlen, int cols3, int **allminsiphons, int totminsiphons){
+  int k,j,l,m,siphlen;
+  int *ia, *ja;
+  double *ar,z;
+  int r;
+  int **siphmat;
+  bool goodflag=1;
+  glp_prob *lp;
+  glp_smcp parm;
+
+  glp_init_smcp(&parm);
+  parm.msg_lev = GLP_MSG_OFF;
+
+  ia=(int *)malloc((size_t) ((1+(nlen+1)*(nlen+cols3+1))*sizeof(int)));
+  ja=(int *)malloc((size_t) ((1+(nlen+1)*(nlen+cols3+1))*sizeof(int)));
+  ar=(double *)malloc((size_t) ((1+(nlen+1)*(nlen+cols3+1))*sizeof(double)));
+  for(k=0;k<totminsiphons;k++){
+
+    siphlen=nlen-allminsiphons[k][0];
+    //fprintf(stderr, "siphlen=%d\n", siphlen);
+    //make a siphon matrix
+    siphmat=imatrix(0,nlen-1,0,siphlen-1);
+    for(j=0;j<nlen;j++)//initialise
+      for(l=0;l<siphlen;l++)
+	siphmat[j][l]=0;
+    r=0;
+
+    for(j=0;j<nlen;j++){
+      if(!isinlist(j,allminsiphons[k]+1,allminsiphons[k][0])){
+	siphmat[j][r++]=1;
+      }
+    }
+    /* printmat(siphmat, nlen, siphlen); */
+
+    lp= glp_create_prob();
+    glp_set_obj_dir(lp, GLP_MAX);
+    //number of constraints (rows) = col dimension of Gamma + boundedness constraint + siphlen
+    glp_add_rows(lp, 1+cols3+siphlen);
+    glp_set_row_bnds(lp, 1, GLP_UP, 0.0, 10.0);
+    for(j=2;j<cols3+2;j++)
+      glp_set_row_bnds(lp, j, GLP_FX, 0.0, 0.0);
+    for(j=cols3+2;j<cols3+2+siphlen;j++)
+      glp_set_row_bnds(lp, j, GLP_FX, 0.0, 0.0);
+
+    //number of variables (cols) = row dimension of Gamma
+    glp_add_cols(lp, nlen);
+    for(j=1;j<nlen+1;j++){
+      glp_set_col_bnds(lp, j, GLP_LO, 0.0, 0.0);
+      glp_set_obj_coef(lp, j, 1.0); // objective function
+    }
+
+    m=1;
+    for(j=1;j<nlen+1;j++){//col indices
+      ia[m]=1;ja[m]=j;ar[m]=1.0;//boundedness constraint
+      m++;
+      for(l=2;l<2+cols3;l++){//row indices
+	ia[m]=l;ja[m]=j;ar[m]=imat3[j-1][l-2];
+	m++;
+      }
+      for(l=2+cols3;l<2+cols3+siphlen;l++){//row indices
+	ia[m]=l;ja[m]=j;ar[m]=siphmat[j-1][l-2-cols3];// face constraints
+	m++;
+      }
+    }
+    //fprintf(stderr, "m=%d\n", m);
+    glp_load_matrix(lp, m-1, ia, ja, ar);
+    glp_simplex(lp, &parm);//can be NULL
+    z = glp_get_obj_val(lp);
+    /* fprintf(stderr, "z = %.2f\n", z); */
+ 
+    glp_delete_prob(lp);
+    free_imatrix(siphmat, 0,nlen-1,0,siphlen-1);
+    if(z<0.01){// assume fail
+      goodflag=0;
+      break;
+    }
+  }
+  free ((char *)(ia));free ((char *)(ja));free ((char *)(ar));
+
+  return goodflag;
+
+}
+
+bool has_nonz_signed_col(int **imat, int n, int m){
+  int i,j,p;
+  for(j=0;j<m;j++){// each column
+    p=0;// nothing found yet
+    for(i=0;i<n;i++){
+      if(imat[i][j]){
+	if(!p && imat[i][j]<0)
+	  p=-1;
+	else if(!p && imat[i][j]>0)
+	  p=1;
+	else if(p*imat[i][j]<0){
+	  p=0;break;//mixed column
+	}
+      }
+    }
+    if(p)//not a mixed column
+      return 1;
+  }
+  return 0;
+}
+
+
+// Does Gamma^t have a strictly positive vector in its kernel? 
+// Checked only up to some tolerance
+
+int hasposkervec(int **imat1, int nlen, int mlen, bool strict){
+  int j,l,m,lpstat;
+  int *ia, *ja;
+  double *ar,z;
+  int goodflag=1;
+  glp_prob *lp;
+  glp_smcp parm;
+  double tol=0.0;
+  if(strict){
+    if(has_nonz_signed_col(imat1, nlen, mlen))
+      return 0;
+    tol=0.01;
+  }
+  glp_init_smcp(&parm);
+  parm.msg_lev = GLP_MSG_OFF;
+
+  ia=(int *)malloc((size_t) ((1+(nlen+1)*(mlen+1))*sizeof(int)));
+  ja=(int *)malloc((size_t) ((1+(nlen+1)*(mlen+1))*sizeof(int)));
+  ar=(double *)malloc((size_t) ((1+(nlen)*(mlen+1))*sizeof(double)));
+
+  lp= glp_create_prob();
+  glp_set_obj_dir(lp, GLP_MAX);
+  //number of constraints (rows) = col dimension of Gamma + boundedness constraint
+  glp_add_rows(lp, 1+mlen);
+  glp_set_row_bnds(lp, 1, GLP_UP, 0.0, 10.0);
+  for(j=2;j<mlen+2;j++)
+    glp_set_row_bnds(lp, j, GLP_FX, 0.0, 0.0);
+
+  //number of variables (cols) = row dimension of Gamma
+  glp_add_cols(lp, nlen);
+  for(j=1;j<nlen+1;j++){
+    glp_set_col_bnds(lp, j, GLP_LO, tol, 0.0);// to ensure positivity: could introduce false negatives. 
+    glp_set_obj_coef(lp, j, 1.0); // objective function
+  }
+
+  m=1;
+  for(j=1;j<nlen+1;j++){//col indices
+    ia[m]=1;ja[m]=j;ar[m]=1.0;//boundedness constraint
+    m++;
+    for(l=2;l<2+mlen;l++){//row indices
+      ia[m]=l;ja[m]=j;ar[m]=imat1[j-1][l-2];
+      m++;
+    }
+  }
+
+  glp_load_matrix(lp, m-1, ia, ja, ar);
+
+  //glp_write_lp(lp, NULL,"tmpfile.glp");
+
+  glp_simplex(lp, &parm);//can be NULL
+  /* fprintf(stderr, "**%d, %d\n", glp_get_status(lp), GLP_OPT); */
+  lpstat=glp_get_status(lp);
+  if(strict){// no positive vector
+    if(lpstat!=GLP_OPT && lpstat!=GLP_FEAS)// infeasible
+      goodflag=-1;//probably!
+  }
+  else{// no nonnegative vector (must have z value 10 if it exists)
+    if(lpstat==GLP_OPT && (z=glp_get_obj_val(lp))<0.01) // solution is zero
+      goodflag=0;
+  }
+  /* z = glp_get_obj_val(lp); */
+  /* fprintf(stderr, "z = %.2f\n", z); */
+ 
+  glp_delete_prob(lp);
+  free ((char *)(ia));free ((char *)(ja));free ((char *)(ar));
+
+  return goodflag;
+}
+
+int **transposemat(int **imat, int n, int m){
+  int i,j;
+  int **tmp=imatrix(0, m-1, 0, n-1);
+  for(i=0;i<n;i++)
+    for(j=0;j<m;j++)
+      tmp[j][i]=imat[i][j];
+  return tmp;
+}
+
+int hasposrkervec(int **imat1, int nlen, int mlen, bool strict){
+  int flg;
+  int **tmp=transposemat(imat1,nlen,mlen);
+  flg=hasposkervec(tmp,mlen,nlen,strict);
+  free_imatrix(tmp,0,mlen-1,0,nlen-1);
+  return flg;
+}
+
+
+void strongconnect(int i, int **mat, int n, int *inds, int *lowlink, int *ind, int ***S, int *totS, int *Sc, int *Scpos){
+  int j,k;
+
+  /* fprintf(stderr, "current: "); */
+  /* printvec1(Sc, *Scpos); */
+  // Set the depth index for v to the smallest unused index
+  inds[i]=*ind;lowlink[i]=*ind;(*ind)++;
+  Sc[(*Scpos)++]=i;//add to stack
+
+  // Consider successors of v
+  for (j=0;j<n;j++){
+    if(mat[i][j]){// each out-edge
+      if(inds[j]<0){
+	strongconnect(j, mat, n, inds, lowlink, ind, S, totS, Sc, Scpos);
+	lowlink[i]=min(lowlink[i],lowlink[j]);
+      }
+      else if(isinlist(j, Sc, *Scpos))
+	lowlink[i]=min(lowlink[i],inds[j]);
+    }
+  }
+  // If node i is a root node, pop the stack and generate an SCC
+  if (lowlink[i]==inds[i]){
+    //Create SCC
+    if((*totS)==0)
+      (*S) = (int**) malloc(sizeof(int*) * 1);
+    else
+      (*S) =(int**) realloc((*S), sizeof(int*) *((*totS)+1));
+
+    k=(*Scpos)-1;
+    while(Sc[k]!=i)
+      k--;
+
+    (*S)[(*totS)] = (int*) malloc(sizeof(int) * ((*Scpos)-k+1));
+
+    (*S)[(*totS)][0]=(*Scpos)-k;// first element is size
+    for(j=k;j<(*Scpos);j++)
+      (*S)[(*totS)][j-k+1]=Sc[j];
+    (*totS)++;(*Scpos)=k;//reset stack
+  }
+
+}
+
+// My implementation of Tarjan's algorithm
+// Based on pseudocode on Wikipedia
+// mat is the n X n incidence matrix of the digraph
+// output is the list of SCCs and totS, the number of SCCs
+
+
+int **Tarjan(int **mat, int n, int *totS){
+  //  output: set of strongly connected components (set of vertex-sets)
+  int i, ind=0; //ind increments as we encounter vertices
+  int *inds=(int *)malloc((size_t) ((n)*sizeof(int)));
+  int *lowlink=(int *)malloc((size_t) ((n)*sizeof(int)));
+  int **S=NULL;// to store the SCCs
+  int *Sc= (int *)malloc((size_t) ((n)*sizeof(int)));//stack
+  int Scpos=0;//stack-counter
+
+  for(i=0;i<n;i++)
+    inds[i]=-1;
+
+  for(i=0;i<n;i++){
+    if(inds[i]<0)
+      strongconnect(i,mat,n,inds,lowlink,&ind, &S,totS, Sc, &Scpos);
+  }
+
+  free((char *)(Sc));
+
+  /* fprintf(stderr, "Total number of SCCs in complex graph = %d:\n", *totS); */
+  /* for(i=0;i<(*totS);i++){ */
+  /*   fprintf(stderr, "i=%d, sz=%d\n", i,S[i][0]); */
+  /*   for(ind=0;ind<S[i][0];ind++) */
+  /*     fprintf(stderr, "%d ", S[i][1+ind]); */
+  /*   fprintf(stderr, "\n"); */
+  /* } */
+  return S;
+}
+
+
+int isinarray4(int **v, int numv, int *s){
+  // is the integer vector s a member of the array v? If so return its index, if not return -1
+  int i;
+  // assume first entry is length of string
+  for(i=0;i<numv;i++){
+    if(unordlistareeq(v[i]+1,s[0],s+1,s[0]))
+      return i;
+  }
+  return -1;
+}
+
+// Confirm that each member of A is also in B
+// E.g. the CCs are also SCCs
+
+bool is_sublist(int **A, int numA, int **B, int numB){
+  int i;
+  for(i=0;i<numA;i++){
+    if(isinarray4(B,numB,A[i])<0)
+      return 0;
+  }
+  return 1;
+}
+
+// Which member of the partition A is integer i a member of?
+// Return -1 if it isn't in the partition
+// Assume that the first entry of each integer string in A
+// is the length of the remainder
+
+int partmember(int i, int **A, int totA){
+  int j,k;
+  for(j=0;j<totA;j++){
+    for(k=1;k<A[j][0]+1;k++){
+      if(i==A[j][k])
+	return j;
+    }
+  }
+  return -1;
+}
+
+int zerocmplx(int **cmplxs, int totcmplx, int n){
+  int i,j;
+  bool flg;
+  for(i=0;i<totcmplx;i++){
+    flg=1;
+    for(j=0;j<n;j++){
+      if(cmplxs[i][j]){// not zero complex
+	flg=0;break;
+      }
+    }
+    if(flg)
+      return i;
+  }
+  return -1;
+}
+
+// Check if the system is weakly reversible
+// We do this by computing the complex graph, 
+// computing all its SCCs and all its CCs
+// and checking that each CC is an SCC
+// It could be more efficient to check each
+// CC is an SCC as it is computed. 
+
+bool weak_rev(int **stoichl, int **stoichr, int n, int m, int *numcomp, int *numlink, bool haszero, bool *zeronotterm){
+  //stoichl is the left stoichiometric matrix; stoichr is the right stoichiometric matrix
+  int i,j,k,totcmplx=0,zeroint;
+  int **stoichlt, **stoichrt; //for transposed matrices
+  int **cmplxs=NULL;
+  int ind1,ind2;
+  int **cmpmat;
+  int **cmpmat1; //for connected components
+  int edg[m][2];
+  int **SCC=NULL, **CC=NULL;
+  int totSCC=0,totCC=0;
+  bool flag=0;
+  (*zeronotterm)=0;
+
+  stoichlt=transposemat(stoichl, n, m);
+  stoichrt=transposemat(stoichr, n, m);
+  for(i=0;i<m;i++){// get the complexes and the edges of the incidence graph
+    totcmplx=addintstr(totcmplx, stoichlt[i], n, &cmplxs, &ind1);
+    totcmplx=addintstr(totcmplx, stoichrt[i], n, &cmplxs, &ind2);
+    edg[i][0]=ind1;edg[i][1]=ind2;
+  }
+  (*numcomp)=totcmplx;
+
+  free_imatrix(stoichlt,0,m-1,0,n-1);
+  free_imatrix(stoichrt,0,m-1,0,n-1);
+
+  cmpmat=imatrix(0,totcmplx-1,0,totcmplx-1);
+  cmpmat1=imatrix(0,totcmplx-1,0,totcmplx-1);
+  for(i=0;i<totcmplx;i++){
+    for(j=0;j<totcmplx;j++){
+      cmpmat[i][j]=0;
+      cmpmat1[i][j]=0;
+    }
+  }
+  for(i=0;i<m;i++){
+    cmpmat[edg[i][0]][edg[i][1]]=1;
+    cmpmat1[edg[i][0]][edg[i][1]]=1;
+    cmpmat1[edg[i][1]][edg[i][0]]=1;
+  }
+
+
+
+  SCC=Tarjan(cmpmat, totcmplx, &totSCC);
+  CC=Tarjan(cmpmat1, totcmplx, &totCC);
+  (*numlink)=totCC;
+
+  if(haszero){//check if zero is in a terminal SCC
+    zeroint=zerocmplx(cmplxs, totcmplx, n);
+    k=partmember(zeroint,SCC,totSCC);
+    for(j=0;j<totcmplx;j++){
+      if(cmpmat[zeroint][j] && (partmember(j,SCC,totSCC)!=k)){// outedge
+	(*zeronotterm)=1;break;//not terminal
+      }
+    }
+  }
+
+  /* //Which SCCs are terminal? */
+  /* term=(int *)malloc((size_t) ((totSCC)*sizeof(int))); */
+  /* for(i=0;i<totSCC;i++) */
+  /*   term[i]=1; */
+
+  /* for(i=0;i<totcmplx;i++){ */
+  /*   k=partmember(i,SCC,totSCC); */
+  /*   for(j=0;j<totcmplx;j++){ */
+  /*     if(cmpmat[i][j] && (partmember(j,SCC,totSCC)!=k)){// outedge */
+  /* 	term[i]=0;break; */
+  /*     } */
+  /*   } */
+  /* } */
+
+  /* fprintf(stderr, "Complex incidence matrix:\n"); */
+  /* printmat(cmpmat,totcmplx,totcmplx); */
+
+  /* fprintf(stderr, "terminal?\n"); */
+  /* printvec(term,totSCC); */
+
+
+  if(is_sublist(CC,totCC,SCC,totSCC))
+    flag=1;
+
+  free_imat(SCC,totSCC);
+  free_imat(CC,totCC);
+  free_imat(cmplxs,totcmplx);
+
+  free_imatrix(cmpmat,0,totcmplx-1,0,totcmplx-1);
+  free_imatrix(cmpmat1,0,totcmplx-1,0,totcmplx-1);
+
+  return flag;
+}
+
+// Is the DSR graph of imat1 (nXm) and imat2^t (mXn) strongly connected?
+
+bool DSRSC(int **imat1, int **imat2, int n, int m){
+  int i,j,**SCC,**imat=imatrix(0,n+m-1,0,n+m-1);
+  int totSCC=0;
+
+  for(i=0;i<n;i++){
+    for(j=0;j<n;j++)
+      imat[i][j]=0;
+    for(j=n;j<n+m;j++)
+      imat[i][j]=imat1[i][j-n];
+  }
+
+  for(i=n;i<n+m;i++){
+    for(j=0;j<n;j++)
+      imat[i][j]=imat2[j][i-n];
+    for(j=n;j<n+m;j++)
+      imat[i][j]=0;
+  }
+
+  /* printmat(imat,n+m,n+m); */
+
+  SCC=Tarjan(imat, n+m, &totSCC);
+  free_imatrix(imat,0,n+m-1,0,n+m-1);
+  free_imat(SCC,totSCC);
+  if(totSCC==1)
+    return 1;
+  return 0;
+}
+
+// given a matrix with no more than two nonzero entries in each column
+// check if its DSR graph has o-cycles: rows can be re-signed to 
+// ensure no column has more than one positive entry or more than one 
+// negative entry
+// The basic idea follows M. Banaji, Cycle structure in SR and DSR graphs: implications for multiple equilibria and stable oscillation in chemical reaction networks, in K. Jensen, S. Donatelli and J. Kleijn (eds): Transactions On Petri Nets and Other models of Concurrency (ToPNoC), volume V, series: LNCS, volume 6900 (2012) 
+// An SR-graph with S-degree <= 2 can be R-sorted if and only if it contains no o-cycles. (If it contains an o-cycle it can't be R-sorted is trivial since this would change the o-cycle to an e-cycle; the other direction for a connected graph is Lemma 2) in the ref above
+
+int hasoloops(int **mat, int *resgn, int n, int m){
+
+  int i, j, k, p, q,flg=1;
+  resgn[0]=1;
+  for(i=1;i<n;i++)
+    resgn[i]=0;
+
+  while(flg){
+    flg=0;
+    for(j=0;j<m;j++){// each column
+      p=0;// no nonzero entries found yet
+      for(i=0;i<n;i++){ // each entry
+	if(!p && mat[i][j]){// first nonzero entry in col j
+	  p=mat[i][j];q=i;
+	}
+	else if(mat[i][j]*p > 0){ // second entry of same sign in col j
+	  if(!(resgn[q]) && !(resgn[i])){
+	    resgn[i]=-1;
+	    resgn[q]=1;
+	    for(k=0;k<m;k++) // resign row i
+	      mat[i][k]=-mat[i][k];
+	    flg=1;// something resigned
+	    break;
+	  }
+	  else if(!(resgn[i])){
+	    resgn[i]=-1;
+	    for(k=0;k<m;k++) // resign row i
+	      mat[i][k]=-mat[i][k];
+	    flg=1; // something resigned
+	    break;
+	  }
+	  else if(!(resgn[q])){
+	    resgn[q]=-1;
+	    for(k=0;k<m;k++) // resign row q
+	      mat[q][k]=-mat[q][k];
+	    flg=1;// something resigned
+	    break;
+	  }
+	  else // can't resign: failed
+	    return 1;
+	}
+      }
+      if(flg) // some row got resigned, start again. 
+	break;
+    }
+  }// exit loop if no changes
+
+  for(i=0;i<n;i++)//non-resigned rows
+    if(!(resgn[i]))
+      resgn[i]=1;
+  return 0;
+}
+
+int hasoloopst(int **mat, int *resgn, int n, int m){
+  int **tmp=transposemat(mat,n,m);
+  int i,j,flg;
+  flg=hasoloops(tmp,resgn,m,n);
+  for(i=0;i<n;i++)
+    for(j=0;j<m;j++)
+      mat[i][j]=tmp[j][i];
+
+  free_imatrix(tmp,0,m-1,0,n-1);
+  return flg;
+}
+
+// row degree of a matrix
+
+int rowdegree(int **imat, int n, int m){
+  int i,j,tmp,deg=0;
+  for(i=0;i<n;i++){//each row
+    tmp=0;
+    for(j=0;j<m;j++){
+      if(imat[i][j])
+	tmp++;
+    }
+    deg=max(deg, tmp);
+  }
+  return deg;
+}
+
+// column degree of a matrix
+
+int coldegree(int **imat, int n, int m){
+  int i,j,tmp,deg=0;
+  for(j=0;j<m;j++){//each column
+    tmp=0;
+    for(i=0;i<n;i++){
+      if(imat[i][j])
+	tmp++;
+    }
+    deg=max(deg, tmp);
+  }
+  return deg;
+}
+
+// multiply two integer matrices A and B of dimensions nXr and rXm
+// to get the integer matrix C of dimension nXm
+
+void multindAB(int **A, int **B, int **C, int n, int r, int m){
+
+  int i,j,k;
+  for(i=0;i<n;i++){
+    for(j=0;j<m;j++){
+      C[i][j]=0;
+      for(k=0;k<r;k++)
+	C[i][j]+=A[i][k]*B[k][j];
+    }
+  }
+  return;
+}
+
+int **multindAB1(int **A, int **B, int n, int m){
+  //output AB^t where A,B are nXm matrices
+  int i,j,k;
+  int **C=imatrix(0,n-1,0,n-1);
+  for(i=0;i<n;i++){
+    for(j=0;j<n;j++){
+      C[i][j]=0;
+      for(k=0;k<m;k++)
+	C[i][j]+=A[i][k]*B[j][k];
+    }
+  }
+  return C;
+}
+
+// symmetrise a pattern matrix
+
+int **symmetrise(int **A, int n){
+  int i,j;
+  int **B=imatrix(0, n-1, 0, n-1);
+  for(i=0;i<n;i++)
+    for(j=0;j<n;j++)
+      B[i][j]=0;
+
+  for(i=0;i<n;i++){
+    for(j=0;j<n;j++){
+      if(A[i][j]){
+	B[i][j]=1;B[j][i]=1;
+      }
+    }
+  }
+  return B;
+}
+
+bool connected_prod(int **A, int **B, int n, int m){
+  // Is the i-graph of the product of AB^t
+  // connected (not necessarily strongly)?
+  // Assumes that the I-graph is well-defined
+  int **C,**C1,**CC=NULL;
+  int totCC=0;
+  bool flg=0;
+  C=multindAB1(A,B,n,m);
+  C1=symmetrise(C,n);
+  CC=Tarjan(C1,n,&totCC);
+  if(totCC==1)
+    flg=1;
+  free_imatrix(C,0,n-1,0,n-1);
+  free_imatrix(C1,0,n-1,0,n-1);
+  free_imat(CC,totCC);
+  return flg;
+}
+
+// From Graph-theoretic characterizations of monotonicity
+// of chemical networks in reaction coordinates
+// David Angeli, Patrick De Leenheer and Eduardo Sontag
+// JMB (2009)
+// Assumes it has been checked that no chemicals appear on both 
+// sides of a reaction. 
+// Assumes we have checked that stoichiometry classes are bounded
+// Assumes structural persistence
+
+
+int ALS_JMB_2009(int **im1, int **im2, int n, int m, int allgood, int bdclass, int persistflag){
+  int *resgn=(int *)malloc((size_t) ((m)*sizeof(int)));
+  //local copies
+  int **imat1=cpmat(im1, n, m);
+  int **imat2=cpmat(im2, n, m);
+  int i,j;
+  int flg=0;
+  //fprintf(stderr, "Entering ALS...\n");
+
+  if(!allgood || bdclass!=1 || !persistflag)
+    return 0;
+
+  //fprintf(stderr, "rowd = %d\n", rowdegree(imat1, n, m));
+  if(rowdegree(imat1, n, m)<=2 && !hasoloopst(imat1, resgn, n, m)){//orthant monotone (gets resigned to preserve the nonnegative orthant)
+    // resign imat2
+    for(i=0;i<n;i++)
+      for(j=0;j<m;j++)
+	imat2[i][j]=resgn[i]*imat2[i][j];
+
+    // is the I-graph of the reverse product connected?
+    if(connected_prod(imat2,imat1,m,n)){// strong monotonicity
+      if(hasposrkervec(imat1,n,m,1)==1)//Condition (9) in ref.
+	flg=1;
+      else if(!hasposrkervec(imat1,n,m,0))//Condition (10) in ref.
+	flg=2;
+    }
+  }
+  free_imatrix(imat1,0,n-1,0,m-1);
+  free_imatrix(imat2,0,n-1,0,m-1);
+  free((char*)resgn);
+  return flg;
+}
+
+
+int simple_CRN(int **im, int n, int m){
+  int rd,cd,flg=0;
+  int **tmp,*resgn;
+  int **imat=cpmat(im,n,m);//local copy
+  // first for the matrix
+  if((rd=rowdegree(imat, n, m))<=2 || (cd=coldegree(imat, n, m))<=2){
+    if(rd){
+      resgn=(int *)malloc((size_t) ((n)*sizeof(int)));
+      if(!hasoloops(imat, resgn, n, m))
+	flg=1;
+      free((char*)resgn);
+    }
+    else if(cd){
+      tmp=transposemat(imat, n, m);
+      resgn=(int *)malloc((size_t) ((m)*sizeof(int)));
+      if(!hasoloops(tmp, resgn, m, n))
+	flg=2;
+      free((char*)resgn);
+      free_imatrix(tmp,0,m-1,0,n-1);
+    }
+    
+  }
+  free_imatrix(imat,0,n-1,0,m-1);
+  return flg;
+}
+
+void printsiphons(int **allsiphons, int totsiphons, char **chems){
+  int i,j;
+  //  fprintf(stderr, "tot=%d\n",totsiphons);
+  for(i=0;i<totsiphons;i++){
+    fprintf(stderr, "    {");
+    for(j=1;j<allsiphons[i][0];j++)
+      fprintf(stderr, "%s ", chems[allsiphons[i][j]]);
+    fprintf(stderr, "%s}\n", chems[allsiphons[i][j]]);
+  }
+  fprintf(stderr, "\n");
+}
+
+//
+//Euclid's algorithm
+//
+
+int gcd(int a, int b)
+{
+  int temp;
+  if(a<=0 || b <=0){
+    fprintf(stderr, "the routine gcd requires positive integers.\n");
+    exit(0);
+  }
+  while(b){
+    temp=a%b;a=b;b=temp;
+  }
+
+  return a;
+}
+
+// Returns -2 if unresignable
+// or there are signed columns of different signs
+
+int hasnegpos(int **imat, int n, int m){
+  int i,j,p,q=0;
+  for(j=0;j<m;j++){// each column
+    p=0;// nothing found yet
+    for(i=0;i<n;i++){
+      if(imat[i][j]){
+	if(!p && imat[i][j]<0)
+	  p=-1;
+	else if(!p && imat[i][j]>0)
+	  p=1;
+	else if(p*imat[i][j]<0){
+	  p=0;break;//mixed column
+	}
+      }
+    }
+    if(p){//not a mixed column
+      if(!q && p<0)
+	q=-1;
+      else if(!q && p>0)
+	q=1;
+      else if(q*p<0) // has signed columns of different sign
+	return -2;
+    }
+  }
+  return q;
+
+}
+
+//gcd of entries in a vector
+
+int gcd_vec(int *v, int n){
+  int i,j=0,g;
+  if(n==1){
+    if(v[0])
+      return v[0];
+    else
+      return 1;
+  }
+  while(!(v[j]))
+    j++;
+  if(j>=n)
+    return 1;
+  g=abs(v[j]);
+  for(i=j+1;i<n;i++)
+    if(v[i])
+      g=gcd(g,abs(v[i]));
+  return g;
+}
+
+int reduce_vec(int *v, int n){
+  int i;
+  int g=gcd_vec(v, n);
+  for(i=0;i<n;i++)
+    v[i]/=g;
+  return g;
+}
+
+// is a row v2 a nonzero multiple of row v1
+
+int get_mult(int *v1, int *v2, int n){
+  int i,t=0;
+  for(i=0;i<n;i++){
+    if(!(v1[i]*v2[i]) && (v1[i] || v2[i]))
+      return 0;
+    else if(!t && v1[i] && v2[i])
+      t=v2[i]/v1[i];
+    if(v2[i]!=t*v1[i])
+      return 0;
+  }
+  return t;
+}
+
+void addrow(int ***mat, int n, int m){
+  if(!n || !(*mat))
+    (*mat) = (int**) malloc(sizeof(int*) * 1);
+  else
+    (*mat) =(int**) realloc((*mat), sizeof(int*)*(n+1));
+  (*mat)[n]=(int*) malloc(sizeof(int) * m);
+}
+
+// Carry out the factorisation
+// partition rows into pairwise linearly dependent sets
+// for each such set create a single row in the second factor
+// and a column in the first factor
+// output the new "middle" dimension and the two matrices
+
+int special_fact(int **mat, int n, int m, int ***F1, int ***F2o){
+  int **F2=NULL,**F1t=NULL;
+  int i,j,g,t,r=0;
+  int dlt[n];
+  /* cout << "entering special_fact.\n"; */
+  for(i=0;i<n;i++)//initially all rows unused
+    dlt[i]=0;
+
+  for(i=0;i<n;i++){//each row
+  if(!(dlt[i])){//not yet used: new row and column
+    addrow(&F2,r,m);addrow(&F1t,r,n);r++;dlt[i]=1;
+      for(j=0;j<m;j++)
+	F2[r-1][j]=mat[i][j];
+      g=reduce_vec(F2[r-1], m);
+      for(j=0;j<i;j++)// set initial entries to zero (definitely all dealt with)
+	F1t[r-1][j]=0;
+      F1t[r-1][i]=g; // set entry to g
+      for(j=i+1;j<n;j++){
+	if(dlt[j])//used
+	  F1t[r-1][j]=0;
+	else if((t=get_mult(F2[r-1],mat[j],m))){//multiple of reduced?
+	  F1t[r-1][j]=t;dlt[j]=1;//row now dealt with
+	}
+	else
+	  F1t[r-1][j]=0;
+      }
+    }
+  }
+  /* printmat(mat,n,m); */
+  /* printmat(F2,r,m); */
+  /* printmat(F1t,r,n); */
+
+  (*F2o)=cpmat(F2,r,m);
+  (*F1)=transposemat(F1t,r,n);
+  free_imat(F2,r);free_imat(F1t,r);
+  /* cout << "exiting special_fact.\n"; */
+  return r;
+}
+
+bool matseq(int **A, int **B, int n, int m){
+  int i,j;
+  for(i=0;i<n;i++)
+    for(j=0;j<m;j++)
+      if(A[i][j]!=B[i][j])
+	return 0;
+  return 1;
+}
+
+
+// Routine to check if a matrix has a PM1 (Pete-Murad-1) 
+// factorisation or not. The first factor must be a matrix 
+// with exactly one nonzero entry in each row. The second 
+// must have left nullspace of dimension 1 and including 
+// a strictly positive vector
+
+int hasPM1factors(int **Gamma, int **Vpat, int n, int m, int allgood, int q){
+  int i,j,h;
+  int **Lambda=NULL, **Theta=NULL;
+  int cd,rdim=0;
+  int *resgn;
+  int **Gamma_new;
+  bool genflg=0,scflg=0,Kflg=0;
+  if(!allgood)
+    return 0;
+
+  rdim=special_fact(Gamma,n,m,&Lambda,&Theta);
+  resgn =(int *)malloc((size_t) ((rdim)*sizeof(int)));
+
+  /* printmat(Lambda,n,rdim); */
+  /* printmat(Theta,rdim,m); */
+
+
+  if((cd=coldegree(Theta, rdim, m))<=2 && !hasoloops(Theta, resgn, rdim, m) && matrank(Theta, rdim, m)==rdim-1){//also resigns the second factor
+    genflg=1;
+    if(!q){
+      fprintf(stderr, "This seems to be a monotone system.\n\n");
+      //printvec(resgn,rdim);
+    }
+    //resign the first factor
+    for(j=0;j<rdim;j++){//each column
+      for(i=0;i<n;i++)//each entry
+	Lambda[i][j]=resgn[j]*Lambda[i][j];
+    }
+    if(!q){
+      printmat(Lambda,n,rdim);
+      printmat(Theta,rdim,m);
+    }
+    // if it helps, reverse signs of Lambda and Theta
+
+    if((h=hasnegpos(Lambda,n,rdim))==-1){
+      for(j=0;j<rdim;j++){
+	for(i=0;i<n;i++)
+	  Lambda[i][j]=-Lambda[i][j];
+	for(i=0;i<m;i++)
+	  Theta[j][i]=-Theta[j][i];
+      }
+    }
+    if(h!=-2)
+      Kflg=1;
+
+    //sanity check
+    Gamma_new=imatrix(0,n-1,0,m-1);
+    multindAB(Lambda,Theta,Gamma_new,n,rdim,m);
+    if(!matseq(Gamma,Gamma_new,n,m)){
+      fprintf(stderr, "something went wrong: matrix product doesn't work out.\n");
+      printmat(Gamma, n, m);
+      fprintf(stderr, "doesn't factor as:\n\n");
+      printmat(Lambda, n, rdim);printmat(Theta, rdim, m);
+      exit(0);
+    }
+    free_imatrix(Gamma_new,0,n-1,0,m-1);
+
+    if(!q){
+      fprintf(stderr, "The stoichiometric matrix:\n\n");
+      printmat(Gamma, n, m);
+      fprintf(stderr, "factors into:\n\n");
+      printmat(Lambda, n, rdim);
+      printmat(Theta, rdim, m);
+    }
+
+    if(!q){
+      if(h!=-2)
+	fprintf(stderr, "K(Lambda) does not include negative vectors.\n\n");
+      else
+	fprintf(stderr, "However K(Lambda) includes negative vectors.\n\n");
+    }
+    scflg=DSRSC(Gamma, Vpat, n, m);
+    if(!q){
+      if(scflg)      
+	fprintf(stderr, "The DSR graph is strongly connected.\n\n");
+      else
+	fprintf(stderr, "The DSR graph appears not to be strongly connected.\n\n");
+    }
+  }
+
+
+  free((char *)resgn);
+  free_imatrix(Lambda, 0,n-1,0,rdim-1);
+  free_imatrix(Theta,0,rdim-1,0,m-1);
+
+  if(genflg && scflg && Kflg)
+    return 1;
+  if(genflg && scflg)//not necessarily bounded SCs
+    return 2;
+
+  return 0;
+}
+
 
 int analysereacs(const char fname[], int q, bool htmlswitch){
 
-  int **imat1, **imat2, **imat3, **imat4, **imat1a;
+  int k,**imat1, **imat2, **imat3, **imat4, **imat1a, **stoichl, **stoichr;
   char *str;
   int mlen=0, nlen=0, mlena=0;
   char **chems;
@@ -5794,12 +7040,23 @@ int analysereacs(const char fname[], int q, bool htmlswitch){
   int MAcompatflag=0;
   char mpnestr[100];
   char IC1str[200];
+  char IC1ppstr[200];
+  char IC1pstr[200];
   char IC3str[200];
-  char IC12str[400];
+  char IC13str[400];
+  char IC1pp3str[400];
+  char IC1p3str[400];
   char WSDstr[400];
   char WSDstr1[400];
   char WSDstr12[400];
+  int totsiphons=1,totminsiphons=0,**allsiphons=NULL,**allminsiphons=NULL;
+  bool persistflag=1;
+  int bdclass, notallbd;
+  int Srank,numlink,numcomp,deficiency,simp_flg,ALS_flg,PM1_flg;
+  bool weakr, haszerocomplex=0,zeronotterm;
 
+  //Version 1=2013, .6=June, .1 = revision
+  fprintf(stdout, "Analysereacs version 1.6.1. (Please note that this is a work in progress.)\n\n");
 
   str=readfileintostr(fname);
   if(isonlyspace(str)){
@@ -5810,18 +7067,26 @@ int analysereacs(const char fname[], int q, bool htmlswitch){
 
   if(htmlswitch){
     strcpy(mpnestr, "<a title=\"MPNE\" href=\"http://reaction-networks.net/wiki/CoNtRol#MPNE\">MPNE</a>");
+    strcpy(IC1ppstr, "General kinetics: no stoichiometry class includes more than one equilibrium. The system satisfies condition <a title=\"IC1++\" href=\"http://reaction-networks.net/wiki/CoNtRol#Injectivity_condition_1.2B.2B_.28IC1.2B.2B.29\">IC1++</a>. ");
+    strcpy(IC1pstr, "General kinetics: no nontrivial stoichiometry class includes more than one equilibrium. The system satisfies condition <a title=\"IC1+\" href=\"http://reaction-networks.net/wiki/CoNtRol#Injectivity_condition_1.2B_.28IC1.2B.29\">IC1+</a>");
     strcpy(IC1str, "General kinetics: the system satisfies condition <a title=\"IC1\" href=\"http://reaction-networks.net/wiki/CoNtRol#Injectivity_condition_1_.28IC1.29\">IC1</a>");
     strcpy(IC3str, "General kinetics: the system satisfies condition <a title=\"IC3\" href=\"http://reaction-networks.net/wiki/CoNtRol#Injectivity_condition_3_.28IC3.29\">IC3</a>");
-    strcpy(IC12str, "General kinetics: the system satisfies conditions <a title=\"IC1\" href=\"http://reaction-networks.net/wiki/CoNtRol#Injectivity_condition_1_.28IC1.29\">IC1</a> and <a title=\"IC3\" href=\"http://reaction-networks.net/wiki/CoNtRol#Injectivity_condition_3_.28IC3.29\">IC3</a>");
+    strcpy(IC13str, "General kinetics: the system satisfies conditions <a title=\"IC1\" href=\"http://reaction-networks.net/wiki/CoNtRol#Injectivity_condition_1_.28IC1.29\">IC1</a> and <a title=\"IC3\" href=\"http://reaction-networks.net/wiki/CoNtRol#Injectivity_condition_3_.28IC3.29\">IC3</a>");
+    strcpy(IC1p3str, "General kinetics: no nontrivial stoichiometry class includes more than one equilibrium; the fully open system is injective. The system satisfies conditions <a title=\"IC1+\" href=\"http://reaction-networks.net/wiki/CoNtRol#Injectivity_condition_1.2B_.28IC1.2B.29\">IC1+</a> and <a title=\"IC3\" href=\"http://reaction-networks.net/wiki/CoNtRol#Injectivity_condition_3_.28IC3.29\">IC3</a>");
+    strcpy(IC1pp3str, "General kinetics: no stoichiometry class includes more than one equilibrium; the fully open system is injective. The system satisfies conditions <a title=\"IC1++\" href=\"http://reaction-networks.net/wiki/CoNtRol#Injectivity_condition_1.2B.2B_.28IC1.2B.2B.29\">IC1++</a> and <a title=\"IC3\" href=\"http://reaction-networks.net/wiki/CoNtRol#Injectivity_condition_3_.28IC3.29\">IC3</a>");
     strcpy(WSDstr1, "Mass action kinetics: the system satisfies condition <a title=\"IC2\" href=\"http://reaction-networks.net/wiki/CoNtRol#Injectivity_condition_2_.28IC2.29\">IC2</a>");
     strcpy(WSDstr, "Mass action kinetics: the system with mass action kinetics satisfies condition <a title=\"IC3\" href=\"http://reaction-networks.net/wiki/CoNtRol#Injectivity_condition_3_.28IC3.29\">IC3</a>");
     strcpy(WSDstr12, "Mass action kinetics: the system with mass action kinetics satisfies conditions <a title=\"IC2\" href=\"http://reaction-networks.net/wiki/CoNtRol#Injectivity_condition_2_.28IC2.29\">IC2</a> and <a title=\"IC3\" href=\"http://reaction-networks.net/wiki/CoNtRol#Injectivity_condition_3_.28IC3.29\">IC3</a>");
   }
   else{
     strcpy(mpnestr, "MPNE");
+    strcpy(IC1ppstr, "General kinetics: no stoichiometry class includes more than one equilibrium. The system satisfies condition IC1++");
+    strcpy(IC1pstr, "General kinetics: no nontrivial stoichiometry class includes more than one equilibrium. The system satisfies condition IC1+");
     strcpy(IC1str, "General kinetics: the system satisfies condition IC1");
     strcpy(IC3str, "General kinetics: the system satisfies condition IC3");
-    strcpy(IC12str, "General kinetics: the system satisfies conditions IC1 and IC3");
+    strcpy(IC13str, "General kinetics: the system satisfies conditions IC1 and IC3");
+    strcpy(IC1pp3str, "General kinetics: no stoichiometry class includes more than one equilibrium; the fully open system is injective. The system satisfies conditions IC1++ and IC3");
+    strcpy(IC1p3str, "General kinetics: no nontrivial stoichiometry class includes more than one equilibrium; the fully open system is injective. The system satisfies conditions IC1+ and IC3");
     strcpy(WSDstr1, "Mass action kinetics: the system satisfies condition IC2");
     strcpy(WSDstr, "Mass action kinetics: the system satisfies condition IC3");
     strcpy(WSDstr12, "Mass action kinetics: the system satisfies conditions IC2 and IC3");
@@ -5845,7 +7110,7 @@ int analysereacs(const char fname[], int q, bool htmlswitch){
   //
 
   if(type==0){
-    if(!getallreacs(str, &imat1, &imat2, &imat3, &imat4, &chems, &nlen, &mlen, &cols3, &allrev, &allgood)){
+    if(!getallreacs(str, &imat1, &imat2, &imat3, &imat4, &stoichl, &stoichr, &chems, &haszerocomplex, &nlen, &mlen, &cols3, &allrev, &allgood)){
       free(str);
       fprintf(stderr, "ERROR: Couldn't read the reactions in file \"%s\". EXITING. \n", fname);
       return -1;
@@ -5858,11 +7123,14 @@ int analysereacs(const char fname[], int q, bool htmlswitch){
       free_imatrix(imat2, 0, nlen-1, 0, mlen-1);
       free_imatrix(imat3, 0, nlen-1, 0, cols3-1);
       free_imatrix(imat4, 0, nlen-1, 0, cols3-1);
+      free_imatrix(stoichl, 0, nlen-1, 0, cols3-1);
+      free_imatrix(stoichr, 0, nlen-1, 0, cols3-1);
       return -1;
     }
     free(str);
 
-    fprintf(stderr, "The stoichiometric matrix (rank = %d):\n\n", matrank(imat1, nlen, mlen));
+    Srank=matrank(imat1, nlen, mlen);
+    fprintf(stderr, "The stoichiometric matrix (rank = %d):\n\n", Srank);
     printmat1(chems, imat1, nlen, mlen);
     fprintf(stderr, "The pattern matrix for -V^T:\n\n");
     printmatpat(chems, imat2, nlen, mlen);
@@ -5870,9 +7138,112 @@ int analysereacs(const char fname[], int q, bool htmlswitch){
     printmat1(chems, imat3, nlen, cols3);
     fprintf(stderr, "The matrix of powers (mass action):\n\n");
     printmat1(chems, imat4, nlen, cols3);
+    fprintf(stderr, "The left stoichiometric matrix:\n\n");
+    printmat1(chems, stoichl, nlen, cols3);
+    fprintf(stderr, "The right stoichiometric matrix:\n\n");
+    printmat1(chems, stoichr, nlen, cols3);
 
     fprintf(stderr, "\n_________________________________\n\n");
 
+
+
+    // Is the system weakly reversible?
+    weakr=weak_rev(stoichl, stoichr, nlen, cols3, &numcomp, &numlink, haszerocomplex, &zeronotterm);
+    deficiency=numcomp-numlink-Srank;
+    if(deficiency==0 && weakr){
+      fprintf(stdout, "This is a weakly reversible deficiency zero network. According to Feinberg (Chem. Eng. Sci. 42(10), 1987), with mass-action kinetics: each nontrivial stoichiometry class admits exactly one positive equillibrium, and this equilibrium is locally asymptotically stable relative to its stoichiometry class. There are no positive, nontrivial periodic orbits.\n\n");
+    }
+    else if(deficiency==0 && zeronotterm){
+      fprintf(stdout, "This is a deficiency zero network and the zero complex does not lie in a terminal strong linkage class. According to Feinberg (Chem. Eng. Sci. 42(10), 1987), for general kinetics there are no nontrivial periodic orbits at all, including on the boundary.\n\n");
+    }
+    //https://reaction-networks.net/wiki/Reaction_graph#Deficiency
+    else if(deficiency==0)
+      fprintf(stdout, "The network has deficiency zero, but is not weakly reversible. According to Feinberg (Chem. Eng. Sci. 42(10), 1987), for general kinetics there are no positive equilibria or positive nontrivial periodic orbits.\n\n");
+    else{
+      if(weakr)
+	fprintf(stdout, "The network is weakly reversible.\n\n");
+      else
+	fprintf(stdout, "The network is not weakly reversible.\n\n");
+
+      fprintf(stdout, "The network has deficiency %d.\n\n", deficiency);
+    }
+
+    if((simp_flg=simple_CRN(imat1,nlen,mlen))){
+      if(simp_flg==1)
+	fprintf(stderr, "The system has no o-cycles and S-degree <=2\n\n");
+      else
+	fprintf(stderr, "The system has no o-cycles and R-degree <=2\n\n");
+    }
+
+    /* fprintf(stderr, "numcomp = %d\n", numcomp); */
+    /* fprintf(stderr, "numlink = %d\n", numlink); */
+    /* fprintf(stderr, "Srank = %d\n", Srank); */
+
+    // check if the stoichiometric matrix has positive vectors in its left-kernel
+    bdclass=hasposkervec(imat1, nlen, mlen, 1);//strict
+    if(!bdclass)
+      fprintf(stdout, "Stoichiometry classes are unbounded.\n\n");
+    else if(bdclass==-1)//probably unbounded
+      fprintf(stdout, "Stoichiometry classes may be unbounded.\n\n");
+    else
+      fprintf(stdout, "Stoichiometry classes are bounded (each stoichiometry class contains at least one equilibrium).\n\n");
+
+    // test if the irreversible stoichiometric matrix has no positive vectors in its kernel
+    notallbd=hasposrkervec(imat3, nlen, cols3, 1);//strict
+
+    //count the siphons
+    totsiphons=checksiphons(imat3,imat4,nlen,cols3,&allsiphons,&totminsiphons,&allminsiphons);
+    if(!notallbd && !totsiphons)
+      fprintf(stdout, "The only equilibrium of the system is the trivial one.\n\n");
+    else if(notallbd==-1 && !totsiphons)
+      fprintf(stdout, "The only equilibrium of the system appears to be the trivial one.\n\n");
+    else if(!notallbd)
+      fprintf(stdout, "All equilibria are boundary equilibria.\n\n");
+    else if(notallbd==-1)
+      fprintf(stdout, "All equilibria appear to be boundary equilibria.\n\n");
+    else if(!totsiphons)
+      fprintf(stdout, "This system has no siphons (the boundary includes no nontrivial equilbria).\n\n");
+
+    if(totsiphons){
+      fprintf(stderr, "Siphons of the system:\n");
+      printsiphons(allsiphons, totsiphons, chems);
+      fprintf(stderr, "Minimal siphons of the system:\n");
+      printsiphons(allminsiphons, totminsiphons, chems);
+
+      persistflag=structpersist(imat3, nlen, cols3, allminsiphons, totminsiphons);
+      if(persistflag)
+	fprintf(stdout, "The system has siphons, but is structurally persistent: no nontrivial stoichiometry class includes boundary equilibria.\n\n");
+    }
+
+    if((ALS_flg=ALS_JMB_2009(imat1,imat2,nlen,mlen,allgood,bdclass,persistflag))){
+      if(ALS_flg==1)
+	fprintf(stdout, "According to Angeli, De Leenheer and Sontag (J. Math Biol. 61(4), 2010) the system (with general kinetics) is globally convergent in the following sense: all positive initial conditions converge to an equilibrium which is the unique equilibrium on its stoichiometry class.\n\n");
+      else if(ALS_flg==2){
+	fprintf(stdout, "According to Angeli, De Leenheer and Sontag (J. Math Biol. 61(4), 2010) the system (with general kinetics) is generically quasiconvergent: almost all positive conditions converge to the set of equilibria (the measure of the set of possibly non-convergent initial conditions is zero).\n\n");
+      }
+    }
+
+    if((PM1_flg=hasPM1factors(imat1, imat2, nlen, mlen, allgood, 1))){
+      if(PM1_flg==1){
+      if(!totsiphons)
+	fprintf(stdout, "According to Donnell and Banaji (SIADS, 2013) the system (with general kinetics) is globally convergent in the following sense: all initial conditions converge to an equilibrium which is the unique equilibrium on its stoichiometry class, and is (for stoichiometry classes other than {0}) positive.\n\n");
+      else if(persistflag)
+	fprintf(stdout, "According to Donnell and Banaji (SIADS, 2013) the system (with general kinetics) is globally convergent in the following sense: all initial conditions on any nontrivial stoichiometry class converge to an equilibrium which is the unique equilibrium on its stoichiometry class.\n\n");
+      }
+      else if (PM1_flg==2){
+	fprintf(stdout, "According to Donnell and Banaji (SIADS, 2013) the system (with general kinetics) is locally convergent in the following sense: every positive initial condition is locally asymptotically stable.\n\n");
+      }
+    }
+
+    //free siphons
+    for(k=0;k<totsiphons;k++)
+      free ((char *)(allsiphons[k]));
+    if(allsiphons)
+      free((char *) allsiphons);
+    for(k=0;k<totminsiphons;k++)
+      free ((char *)(allminsiphons[k]));
+    if(allminsiphons)
+      free((char *) allminsiphons);
 
     if(allgood && allrev){ // no reactants on both sides and all reversible
       imat1a=redmat(imat1, nlen, mlen, &mlena);//remove redundant cols
@@ -5882,17 +7253,47 @@ int analysereacs(const char fname[], int q, bool htmlswitch){
 	if(ssdflag!=2)
 	  wsdflag=doubleisWSD(imat1a, nlen, mlena, q);
       }
-      if(csdflag==2)
-	fprintf(stdout, "%s. In fact, this reaction structure satisfies conditions IC1 and IC3 with *any stoichiometries*, and regardless of whether all reactions are reversible or irreversible.\n", IC12str);
-      else if(ssdflag){
-	if(ssdflag==2 && csdflag==1)
-	  fprintf(stdout, "%s. (In fact, this reaction structure satisfies condition IC1, but not necessarily IC3, with *any stoichiometries*, and regardless of whether all reactions are reversible or irreversible.)\n", IC12str);
-	else if(ssdflag==2)
-	  fprintf(stdout, "%s.\n", IC12str);
-	else if(csdflag==1)
-	  fprintf(stdout, "%s. This reaction structure satisfies condition IC1 with *any stoichiometries*, and regardless of whether all reactions are reversible or irreversible.\n", IC1str);
+      if(csdflag==2){
+	if(totsiphons==0)
+	  fprintf(stdout, "%s. In fact, this reaction structure satisfies conditions IC1++ and IC3 with *any stoichiometries*.\n", IC1pp3str);
+	else if(persistflag)
+	  fprintf(stdout, "%s. In fact, this reaction structure satisfies conditions IC1+ and IC3 with *any stoichiometries*.\n", IC1p3str);
 	else
-	  fprintf(stdout, "%s\n", IC1str);
+	  fprintf(stdout, "%s. In fact, this reaction structure satisfies conditions IC1 and IC3 with *any stoichiometries*.\n", IC13str);
+      }
+      else if(ssdflag){
+	if(ssdflag==2 && csdflag==1){
+	if(totsiphons==0)
+	  fprintf(stdout, "%s. In fact, this reaction structure satisfies conditions IC1++ and IC3 with *any stoichiometries*.\n", IC1pp3str);
+	else if(persistflag)
+	  fprintf(stdout, "%s. In fact, this reaction structure satisfies conditions IC1+ and IC3 with *any stoichiometries*.\n", IC1p3str);
+	else
+	  fprintf(stdout, "%s. In fact, this reaction structure satisfies conditions IC1 and IC3 with *any stoichiometries*.\n", IC13str);
+	}
+	else if(ssdflag==2){
+	  if(totsiphons==0)
+	    fprintf(stdout, "%s.\n", IC1pp3str);
+	  else if(persistflag)
+	    fprintf(stdout, "%s.\n", IC1p3str);
+	  else
+	    fprintf(stdout, "%s.\n", IC13str);
+	}
+	else if(csdflag==1){
+	  if(totsiphons==0)
+	    fprintf(stdout, "%s. This reaction structure satisfies condition IC1++ with *any stoichiometries*.\n", IC1ppstr);
+	  else if(persistflag)
+	    fprintf(stdout, "%s. This reaction structure satisfies condition IC1+ with *any stoichiometries*.\n", IC1pstr);
+	  else
+	    fprintf(stdout, "%s. This reaction structure satisfies condition IC1 with *any stoichiometries*.\n", IC1str);
+	}
+	else{
+	  if(totsiphons==0)
+	    fprintf(stdout, "%s.\n", IC1ppstr);
+	  else if(persistflag)
+	    fprintf(stdout, "%s.\n", IC1pstr);
+	  else
+	    fprintf(stdout, "%s.\n", IC1str);
+	}
       }
 
       if(csdflag!=2 && ssdflag!=2){ // check mass action
@@ -5917,21 +7318,38 @@ int analysereacs(const char fname[], int q, bool htmlswitch){
       /* flag = 0 means the matrices are none of the above */
 
       compatflag=arecompat(imat1, imat2, nlen, mlen, q);
-      if(compatflag==3)
-	fprintf(stdout, "%s.\n", IC12str);
+      if(compatflag==3){
+	if(totsiphons==0)
+	  fprintf(stdout, "%s.\n", IC1pp3str);
+	else if(persistflag)
+	  fprintf(stdout, "%s.\n", IC1p3str);
+	else
+	  fprintf(stdout, "%s.\n", IC13str);
+      }
       else if(compatflag==2){
 	MAcompatflag=mats_compat(imat3, imat4, nlen, cols3, q);
-	if(MAcompatflag==3 || MAcompatflag==1)
+	if(MAcompatflag==3 || MAcompatflag==1 || MAcompatflag==-1)
 	  fprintf(stdout, "%s. %s.\n", IC3str, WSDstr1);
 	else
 	  fprintf(stdout, "%s.\n", IC3str);
       }
-      else if(compatflag==1){
+      else if(compatflag==1 || compatflag==-1){
 	MAcompatflag=mats_compat(imat3, imat4, nlen, cols3, q);
-	if(MAcompatflag==3 || MAcompatflag==2)
-	  fprintf(stdout, "%s. %s.\n", IC1str, WSDstr);
+	if(MAcompatflag==3 || MAcompatflag==2){
+	  if(totsiphons==0)
+	    fprintf(stdout, "%s. %s.\n", IC1ppstr, WSDstr);
+	  else if(persistflag)
+	    fprintf(stdout, "%s. %s.\n", IC1pstr, WSDstr);
+	  else
+	    fprintf(stdout, "%s. %s.\n", IC1str, WSDstr);
+	}
 	else
-	  fprintf(stdout, "%s\n", IC1str);
+	  if(totsiphons==0)
+	    fprintf(stdout, "%s\n", IC1ppstr);
+	  else if(persistflag)
+	    fprintf(stdout, "%s\n", IC1pstr);
+	  else
+	    fprintf(stdout, "%s\n", IC1str);
       }
       else{
 	MAcompatflag=mats_compat(imat3, imat4, nlen, cols3, q);
@@ -5939,7 +7357,7 @@ int analysereacs(const char fname[], int q, bool htmlswitch){
 	  fprintf(stdout, "%s. (No injectivity claims seem possible for more general kinetics.)\n", WSDstr12);
 	else if(MAcompatflag==2)
 	  fprintf(stdout, "%s. (No injectivity claims seem possible for more general kinetics.)\n", WSDstr);
-	else if(MAcompatflag==1)
+	else if(MAcompatflag==1 || MAcompatflag==-1)
 	  fprintf(stdout, "%s. (No injectivity claims seem possible for more general kinetics.)\n", WSDstr1);
 	else{
 	  //	allminorsigns(imat3, imat4, nlen, cols3, q);
@@ -5953,6 +7371,8 @@ int analysereacs(const char fname[], int q, bool htmlswitch){
     free_imatrix(imat2, 0, nlen-1, 0, mlen-1);
     free_imatrix(imat3, 0, nlen-1, 0, cols3-1);
     free_imatrix(imat4, 0, nlen-1, 0, cols3-1);
+    free_imatrix(stoichl, 0, nlen-1, 0, cols3-1);
+    free_imatrix(stoichr, 0, nlen-1, 0, cols3-1);
   }
   //
   // The file contains two matrices
@@ -5969,7 +7389,7 @@ int analysereacs(const char fname[], int q, bool htmlswitch){
 
     compatflag=arecompat(imat1, imat2, nlen, mlen, q);
     if(compatflag==3)
-      fprintf(stdout, "%s.\n", IC12str);
+      fprintf(stdout, "%s.\n", IC13str);
     else if(compatflag==2)
       fprintf(stdout, "%s.\n", IC3str);
     else if(compatflag==1)
@@ -6008,14 +7428,14 @@ int analysereacs(const char fname[], int q, bool htmlswitch){
 	wsdflag=doubleisWSD(imat1a, nlen, mlena, q);
     }
     if(csdflag==2)
-      fprintf(stdout, "%s. In fact, this reaction structure satisfies conditions IC1 and IC3 with *any stoichiometries*, and regardless of whether all reactions are reversible or irreversible.\n", IC12str);
+      fprintf(stdout, "%s. (In fact, this reaction structure satisfies conditions IC1 and IC3 with *any stoichiometries*.)\n", IC13str);
     else if(ssdflag){
       if(ssdflag==2 && csdflag==1)
-    	fprintf(stdout, "%s. (In fact, this reaction structure satisfies condition IC1, but not necessarily IC3, with *any stoichiometries*, and regardless of whether all reactions are reversible or irreversible.)\n", IC12str);
+    	fprintf(stdout, "%s. (In fact, this reaction structure satisfies condition IC1, but not necessarily IC3, with *any stoichiometries*.)\n", IC13str);
       else if(ssdflag==2)
-    	fprintf(stdout, "%s.\n", IC12str);
+    	fprintf(stdout, "%s.\n", IC13str);
       else if(csdflag==1)
-    	fprintf(stdout, "%s. This reaction structure satisfies condition IC1 with *any stoichiometries*, and regardless of whether all reactions are reversible or irreversible.\n", IC1str);
+    	fprintf(stdout, "%s. (In fact, this reaction structure satisfies condition IC1 with *any stoichiometries*.)\n", IC1str);
       else
     	fprintf(stdout, "%s\n", IC1str);
     }

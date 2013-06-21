@@ -16,9 +16,11 @@ HEADERS =	src/crn.h
 
 MAINLIB = 	src/lib/libcrn.a
 
-MAINLINK =	-lcrn -lcln -lginac
+MAINLINK =	-lcrn -lcln -lginac -lglpk
 
 OBJDIR = 	src/obj
+LIBDIR =	src/lib
+BINDIR = 	bin
 
 AR      =       ar crs
 
@@ -30,17 +32,24 @@ project: bin/test;
 clean: 
 	rm bin/* src/lib/* src/obj/*
 
-src/obj/%.o: src/%.c $(HEADERS)
+src/obj/%.o: src/%.c $(HEADERS) | $(OBJDIR)
 	$(CXX) -c -o $@ $<
 
-src/lib/libcrn.a: $(HEADERS) $(OBJECTS)
+src/lib/libcrn.a: $(HEADERS) $(OBJECTS) | $(LIBDIR)
 	$(AR) src/lib/libcrn.a $(OBJECTS)
 
+$(OBJDIR):
+	mkdir $(OBJDIR)
 
+$(LIBDIR):
+	mkdir $(LIBDIR)
+
+$(BINDIR):
+	mkdir $(BINDIR)
 
 ##################
 
-bin/test: src/test.c $(MAINLIB)
+bin/test: src/test.c $(MAINLIB) | $(BINDIR)
 	$(CXX) -o bin/test src/test.c -lm -Lsrc/lib $(MAINLINK)
 
 
