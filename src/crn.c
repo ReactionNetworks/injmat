@@ -6338,7 +6338,7 @@ int isinarray4(int **v, int numv, int *s){
   int i;
   // assume first entry is length of string
   for(i=0;i<numv;i++){
-    if(unordlistareeq(v[i]+1,s[0],s+1,s[0]))
+    if(unordlistareeq(v[i]+1,v[i][0],s+1,s[0]))
       return i;
   }
   return -1;
@@ -6395,7 +6395,7 @@ int zerocmplx(int **cmplxs, int totcmplx, int n){
 // It could be more efficient to check each
 // CC is an SCC as it is computed. 
 
-bool weak_rev(int **stoichl, int **stoichr, int n, int m, int *numcomp, int *numlink, bool haszero, bool *zeronotterm){
+bool weak_rev(int **stoichl, int **stoichr, int n, int m, int *numcomp, int *numlink, bool haszero, bool *zeronotterm, char **chems, bool q){
   //stoichl is the left stoichiometric matrix; stoichr is the right stoichiometric matrix
   int i,j,k,totcmplx=0,zeroint;
   int **stoichlt, **stoichrt; //for transposed matrices
@@ -6420,6 +6420,21 @@ bool weak_rev(int **stoichl, int **stoichr, int n, int m, int *numcomp, int *num
 
   free_imatrix(stoichlt,0,m-1,0,n-1);
   free_imatrix(stoichrt,0,m-1,0,n-1);
+
+  if(!q){
+    fprintf(stderr, "Complexes:\n");
+    for(i=0;i<totcmplx;i++){
+      fprintf(stderr, "{ ");
+      for(j=0;j<n;j++){
+	if(cmplxs[i][j]==1)
+	  fprintf(stderr, "%s ", chems[j]);
+	else if(cmplxs[i][j])
+	  fprintf(stderr, "%d%s ", cmplxs[i][j],chems[j]);
+      }
+      fprintf(stderr, "}\n");
+    }
+    fprintf(stderr, "\n");
+  }
 
   cmpmat=imatrix(0,totcmplx-1,0,totcmplx-1);
   cmpmat1=imatrix(0,totcmplx-1,0,totcmplx-1);
@@ -6465,12 +6480,33 @@ bool weak_rev(int **stoichl, int **stoichr, int n, int m, int *numcomp, int *num
   /*   } */
   /* } */
 
-  /* fprintf(stderr, "Complex incidence matrix:\n"); */
-  /* printmat(cmpmat,totcmplx,totcmplx); */
+  if(!q){
+    fprintf(stderr, "Complex incidence matrix:\n");
+    printmat(cmpmat,totcmplx,totcmplx);
+  }
 
   /* fprintf(stderr, "terminal?\n"); */
   /* printvec(term,totSCC); */
 
+  if(!q){
+    fprintf(stderr, "CCs of complex graph:\n");
+    for(i=0;i<totCC;i++){
+      fprintf(stderr, "    { ");
+      for(j=1;j<CC[i][0]+1;j++)
+	fprintf(stderr, "%d ", CC[i][j]);
+      fprintf(stderr, "}\n");
+    }
+    fprintf(stderr, "\n");
+
+    fprintf(stderr, "SCCs of complex graph:\n");
+    for(i=0;i<totSCC;i++){
+      fprintf(stderr, "    { ");
+      for(j=1;j<SCC[i][0]+1;j++)
+	fprintf(stderr, "%d ", SCC[i][j]);
+      fprintf(stderr, "}\n");
+    }
+    fprintf(stderr, "\n");
+  }
 
   if(is_sublist(CC,totCC,SCC,totSCC))
     flag=1;
@@ -6701,13 +6737,14 @@ int ALS_JMB_2009(int **im1, int **im2, int n, int m, int allgood, int bdclass, i
   int **imat2=cpmat(im2, n, m);
   int i,j;
   int flg=0;
-  //fprintf(stderr, "Entering ALS...\n");
+  //  fprintf(stderr, "Entering ALS...\n");
 
   if(!allgood || bdclass!=1 || !persistflag)
     return 0;
 
-  //fprintf(stderr, "rowd = %d\n", rowdegree(imat1, n, m));
+  //  fprintf(stderr, "rowd = %d\n", rowdegree(imat1, n, m));
   if(rowdegree(imat1, n, m)<=2 && !hasoloopst(imat1, resgn, n, m)){//orthant monotone (gets resigned to preserve the nonnegative orthant)
+    //fprintf(stderr, "here\n");
     // resign imat2
     for(i=0;i<n;i++)
       for(j=0;j<m;j++)
@@ -7056,7 +7093,7 @@ int analysereacs(const char fname[], int q, bool htmlswitch){
   bool weakr, haszerocomplex=0,zeronotterm;
 
   //Version 1=2013, .6=June, .1 = revision
-  fprintf(stdout, "Analysereacs version 1.6.1. (Please note that this is a work in progress.)\n\n");
+  fprintf(stdout, "Analysereacs version 1.6.1. (Please note that this is work in progress.)\n\n");
 
   str=readfileintostr(fname);
   if(isonlyspace(str)){
@@ -7148,7 +7185,7 @@ int analysereacs(const char fname[], int q, bool htmlswitch){
 
 
     // Is the system weakly reversible?
-    weakr=weak_rev(stoichl, stoichr, nlen, cols3, &numcomp, &numlink, haszerocomplex, &zeronotterm);
+    weakr=weak_rev(stoichl, stoichr, nlen, cols3, &numcomp, &numlink, haszerocomplex, &zeronotterm, chems, 1);
     deficiency=numcomp-numlink-Srank;
     if(deficiency==0 && weakr){
       fprintf(stdout, "This is a weakly reversible deficiency zero network. According to Feinberg (Chem. Eng. Sci. 42(10), 1987), with mass-action kinetics: each nontrivial stoichiometry class admits exactly one positive equillibrium, and this equilibrium is locally asymptotically stable relative to its stoichiometry class. There are no positive, nontrivial periodic orbits.\n\n");
@@ -7378,82 +7415,84 @@ int analysereacs(const char fname[], int q, bool htmlswitch){
   // The file contains two matrices
   //
   else if (type==1){
-    if(!readmatpairfromstr(str, &nlen, &mlen, &imat1, &imat2)){ 
-      fprintf(stderr, "ERROR: Expecting two matrices in file \"%s\". Couldn't find these. EXITING. \n", fname);
-      free(str);
-      return -1;
-    }
-    fprintf(stderr, "Assuming that these are the stoichiometric matrix and the pattern matrix for -V^T:\n\n");
-    printmat(imat1, nlen, mlen);
-    printmat(imat2, nlen, mlen);
+    fprintf(stderr, "The current version of this routine doesn't support this format. Please enter the reactions in reaction format.\n");
+    /* if(!readmatpairfromstr(str, &nlen, &mlen, &imat1, &imat2)){  */
+    /*   fprintf(stderr, "ERROR: Expecting two matrices in file \"%s\". Couldn't find these. EXITING. \n", fname); */
+    /*   free(str); */
+    /*   return -1; */
+    /* } */
+    /* fprintf(stderr, "Assuming that these are the stoichiometric matrix and the pattern matrix for -V^T:\n\n"); */
+    /* printmat(imat1, nlen, mlen); */
+    /* printmat(imat2, nlen, mlen); */
 
-    compatflag=arecompat(imat1, imat2, nlen, mlen, q);
-    if(compatflag==3)
-      fprintf(stdout, "%s.\n", IC13str);
-    else if(compatflag==2)
-      fprintf(stdout, "%s.\n", IC3str);
-    else if(compatflag==1)
-      fprintf(stdout, "%s\n", IC1str);
-    else
-      fprintf(stdout, "No injectivity claims seem possible for mass-action kinetics or for general kinetics.\n");
-    free_imatrix(imat1, 0, nlen-1, 0, mlen-1);
-    free_imatrix(imat2, 0, nlen-1, 0, mlen-1);
+    /* compatflag=arecompat(imat1, imat2, nlen, mlen, q); */
+    /* if(compatflag==3) */
+    /*   fprintf(stdout, "%s.\n", IC13str); */
+    /* else if(compatflag==2) */
+    /*   fprintf(stdout, "%s.\n", IC3str); */
+    /* else if(compatflag==1) */
+    /*   fprintf(stdout, "%s\n", IC1str); */
+    /* else */
+    /*   fprintf(stdout, "No injectivity claims seem possible for mass-action kinetics or for general kinetics.\n"); */
+    /* free_imatrix(imat1, 0, nlen-1, 0, mlen-1); */
+    /* free_imatrix(imat2, 0, nlen-1, 0, mlen-1); */
   }
   //
   // The file contains a single matrix
   //
   else{ // single matrix, assumed to be a stoichiometric matrix
-    imat1=readmatrixfromstr(str, &nlen, &mlen);
-    if(!(*imat1)){
-      fprintf(stderr, "ERROR: Couldn't find reactions, a pair of matrices or a matrix in file \"%s\". EXITING. \n", fname);
-      free(str);
-      free_imatrix(imat1, 0, nlen-1, 0, mlen-1);
-      return -1;
-    }
-    imat1a=redmat(imat1, nlen, mlen, &mlena);//remove redundant cols
+    fprintf(stderr, "The current version of this routine doesn't support this format. Please enter the reactions in reaction format.\n");
+    /* imat1=readmatrixfromstr(str, &nlen, &mlen); */
+    /* if(!(*imat1)){ */
+    /*   fprintf(stderr, "ERROR: Couldn't find reactions, a pair of matrices or a matrix in file \"%s\". EXITING. \n", fname); */
+    /*   free(str); */
+    /*   free_imatrix(imat1, 0, nlen-1, 0, mlen-1); */
+    /*   return -1; */
+    /* } */
+    /* imat1a=redmat(imat1, nlen, mlen, &mlena);//remove redundant cols */
 
-    if(mlena!=mlen){
-      fprintf(stderr, "WARNING: This matrix appears to have redundant columns. Assuming that this is a stoichiometric matrix (rank = %d), that no reactants appear on both sides of a reaction, and that all reactions are reversible. If you aren't happy with these assumptions, use the reaction format rather than the matrix format. Will use the following matrix for analysis:\n",matrank(imat1, nlen, mlen));
-      printmat(imat1a, nlen, mlena);
-    }
-    else{
-      fprintf(stderr, "WARNING: Assuming that this is a stoichiometric matrix (rank = %d), that no reactants appear on both sides of a reaction, and that all reactions are reversible. If you aren't happy with these assumptions, use the reaction format rather than the matrix format.\n",matrank(imat1, nlen, mlen));
-      printmat(imat1a, nlen, mlena);
-    }
+    /* if(mlena!=mlen){ */
+    /*   fprintf(stderr, "WARNING: This matrix appears to have redundant columns. Assuming that this is a stoichiometric matrix (rank = %d), that no reactants appear on both sides of a reaction, and that all reactions are reversible. If you aren't happy with these assumptions, use the reaction format rather than the matrix format. Will use the following matrix for analysis:\n",matrank(imat1, nlen, mlen)); */
+    /*   printmat(imat1a, nlen, mlena); */
+    /* } */
+    /* else{ */
+    /*   fprintf(stderr, "WARNING: Assuming that this is a stoichiometric matrix (rank = %d), that no reactants appear on both sides of a reaction, and that all reactions are reversible. If you aren't happy with these assumptions, use the reaction format rather than the matrix format.\n",matrank(imat1, nlen, mlen)); */
+    /*   printmat(imat1a, nlen, mlena); */
+    /* } */
 
-    csdflag=isCSD(imat1a, nlen, mlena, q);
-    if(csdflag!=2){
-      ssdflag=isSSD(imat1a, nlen, mlena, q);
-      if(ssdflag!=2)
-	wsdflag=doubleisWSD(imat1a, nlen, mlena, q);
-    }
-    if(csdflag==2)
-      fprintf(stdout, "%s. (In fact, this reaction structure satisfies conditions IC1 and IC3 with *any stoichiometries*.)\n", IC13str);
-    else if(ssdflag){
-      if(ssdflag==2 && csdflag==1)
-    	fprintf(stdout, "%s. (In fact, this reaction structure satisfies condition IC1, but not necessarily IC3, with *any stoichiometries*.)\n", IC13str);
-      else if(ssdflag==2)
-    	fprintf(stdout, "%s.\n", IC13str);
-      else if(csdflag==1)
-    	fprintf(stdout, "%s. (In fact, this reaction structure satisfies condition IC1 with *any stoichiometries*.)\n", IC1str);
-      else
-    	fprintf(stdout, "%s\n", IC1str);
-    }
+    /* csdflag=isCSD(imat1a, nlen, mlena, q); */
+    /* if(csdflag!=2){ */
+    /*   ssdflag=isSSD(imat1a, nlen, mlena, q); */
+    /*   if(ssdflag!=2) */
+    /* 	wsdflag=doubleisWSD(imat1a, nlen, mlena, q); */
+    /* } */
+    /* if(csdflag==2) */
+    /*   fprintf(stdout, "%s. (In fact, this reaction structure satisfies conditions IC1 and IC3 with *any stoichiometries*.)\n", IC13str); */
+    /* else if(ssdflag){ */
+    /*   if(ssdflag==2 && csdflag==1) */
+    /* 	fprintf(stdout, "%s. (In fact, this reaction structure satisfies condition IC1, but not necessarily IC3, with *any stoichiometries*.)\n", IC13str); */
+    /*   else if(ssdflag==2) */
+    /* 	fprintf(stdout, "%s.\n", IC13str); */
+    /*   else if(csdflag==1) */
+    /* 	fprintf(stdout, "%s. (In fact, this reaction structure satisfies condition IC1 with *any stoichiometries*.)\n", IC1str); */
+    /*   else */
+    /* 	fprintf(stdout, "%s\n", IC1str); */
+    /* } */
 
-    if(csdflag!=2 && ssdflag!=2){ // check mass action
-      if(wsdflag==3)
-	fprintf(stdout, "%s.\n", WSDstr12);
-      else if(wsdflag==2)
-	fprintf(stdout, "%s.\n", WSDstr);
-      else if(wsdflag==1)
-	fprintf(stdout, "%s.\n", WSDstr1);
-    }
+    /* if(csdflag!=2 && ssdflag!=2){ // check mass action */
+    /*   if(wsdflag==3) */
+    /* 	fprintf(stdout, "%s.\n", WSDstr12); */
+    /*   else if(wsdflag==2) */
+    /* 	fprintf(stdout, "%s.\n", WSDstr); */
+    /*   else if(wsdflag==1) */
+    /* 	fprintf(stdout, "%s.\n", WSDstr1); */
+    /* } */
 
-    if(csdflag==0 && ssdflag==0 && wsdflag==0)
-      fprintf(stderr, "Without further information on reversibility, etc. no claims about multistationarity seem possible.\n");
+    /* if(csdflag==0 && ssdflag==0 && wsdflag==0) */
+    /*   fprintf(stderr, "Without further information on reversibility, etc. no claims about multistationarity seem possible.\n"); */
 
-    free_imatrix(imat1, 0, nlen-1, 0, mlen-1);
-    free_imatrix(imat1a, 0, nlen-1, 0, mlena-1);
+    /* free_imatrix(imat1, 0, nlen-1, 0, mlen-1); */
+    /* free_imatrix(imat1a, 0, nlen-1, 0, mlena-1); */
   }
 
   fprintf(stdout, "\n");
