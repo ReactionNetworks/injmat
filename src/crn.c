@@ -6811,7 +6811,6 @@ int ALS_JMB_2009(int **im1, int **im2, int n, int m, int allgood, int bdclass, i
   int **imat2=cpmat(im2, n, m);
   int i,j;
   int flg=0;
-  //  fprintf(stderr, "Entering ALS...\n");
 
   if(!allgood || bdclass!=1 || !persistflag)
     return 0;
@@ -7150,20 +7149,20 @@ int analysereacs(const char fname[], int q, bool htmlswitch){
   int compatflag=0;
   int MAcompatflag=0;
   char mpnestr[100];
-  char IC1str[200];
-  char IC1ppstr[200];
-  char IC1pstr[200];
-  char IC3str[200];
-  char IC13str[400];
-  char IC1pp3str[400];
-  char IC1p3str[400];
-  char MAIC3[400];
-  char MAIC2[400];
-  char MAIC2p[400];
-  char MAIC2pp[400];
-  char MAIC2IC3[400];
-  char MAIC2pIC3[400];
-  char MAIC2ppIC3[400];
+  char IC1str[300];
+  char IC1ppstr[300];
+  char IC1pstr[300];
+  char IC3str[300];
+  char IC13str[500];
+  char IC1pp3str[500];
+  char IC1p3str[500];
+  char MAIC3[500];
+  char MAIC2[500];
+  char MAIC2p[500];
+  char MAIC2pp[500];
+  char MAIC2IC3[500];
+  char MAIC2pIC3[500];
+  char MAIC2ppIC3[500];
   int totsiphons=1,totminsiphons=0,**allsiphons=NULL,**allminsiphons=NULL;
   bool persistflag=1;
   int bdclass, notallbd;
@@ -7184,35 +7183,35 @@ int analysereacs(const char fname[], int q, bool htmlswitch){
     strcpy(mpnestr, "<a title=\"MPNE\" href=\"http://reaction-networks.net/wiki/CoNtRol#MPNE\">MPNE</a>");
     strcpy(IC1ppstr, "General kinetics: no stoichiometry class includes more than one equilibrium. The system satisfies condition <a title=\"IC1++\" href=\"http://reaction-networks.net/wiki/CoNtRol#Injectivity_condition_1.2B.2B_.28IC1.2B.2B.29\">IC1++</a>. ");
     strcpy(IC1pstr, "General kinetics: no nontrivial stoichiometry class includes more than one equilibrium. The system satisfies condition <a title=\"IC1+\" href=\"http://reaction-networks.net/wiki/CoNtRol#Injectivity_condition_1.2B_.28IC1.2B.29\">IC1+</a>");
-    strcpy(IC1str, "General kinetics: the system satisfies condition <a title=\"IC1\" href=\"http://reaction-networks.net/wiki/CoNtRol#Injectivity_condition_1_.28IC1.29\">IC1</a>");
-    strcpy(IC3str, "General kinetics: the system satisfies condition <a title=\"IC3\" href=\"http://reaction-networks.net/wiki/CoNtRol#Injectivity_condition_3_.28IC3.29\">IC3</a>");
-    strcpy(IC13str, "General kinetics: the system satisfies conditions <a title=\"IC1\" href=\"http://reaction-networks.net/wiki/CoNtRol#Injectivity_condition_1_.28IC1.29\">IC1</a> and <a title=\"IC3\" href=\"http://reaction-networks.net/wiki/CoNtRol#Injectivity_condition_3_.28IC3.29\">IC3</a>");
-    strcpy(IC1p3str, "General kinetics: no nontrivial stoichiometry class includes more than one equilibrium; the fully open system is injective. The system satisfies conditions <a title=\"IC1+\" href=\"http://reaction-networks.net/wiki/CoNtRol#Injectivity_condition_1.2B_.28IC1.2B.29\">IC1+</a> and <a title=\"IC3\" href=\"http://reaction-networks.net/wiki/CoNtRol#Injectivity_condition_3_.28IC3.29\">IC3</a>");
-    strcpy(IC1pp3str, "General kinetics: no stoichiometry class includes more than one equilibrium; the fully open system is injective. The system satisfies conditions <a title=\"IC1++\" href=\"http://reaction-networks.net/wiki/CoNtRol#Injectivity_condition_1.2B.2B_.28IC1.2B.2B.29\">IC1++</a> and <a title=\"IC3\" href=\"http://reaction-networks.net/wiki/CoNtRol#Injectivity_condition_3_.28IC3.29\">IC3</a>");
-    strcpy(MAIC2, "Mass action kinetics: the system satisfies condition <a title=\"IC2\" href=\"http://reaction-networks.net/wiki/CoNtRol#Injectivity_condition_2_.28IC2.29\">IC2</a>");
-    strcpy(MAIC2p, "Mass action kinetics: the system satisfies condition <a title=\"IC2+\" href=\"http://reaction-networks.net/wiki/CoNtRol#Injectivity_condition_2.2B_.28IC2.2B.29\">IC2+</a>");
-    strcpy(MAIC2pp, "Mass action kinetics: the system satisfies condition <a title=\"IC2++\" href=\"http://reaction-networks.net/wiki/CoNtRol#Injectivity_condition_2.2B.2B_.28IC2.2B.2B.29\">IC2++</a>");
-    strcpy(MAIC3, "Mass action kinetics: the system with mass action kinetics satisfies condition <a title=\"IC3\" href=\"http://reaction-networks.net/wiki/CoNtRol#Injectivity_condition_3_.28IC3.29\">IC3</a>");
-    strcpy(MAIC2IC3, "Mass action kinetics: the system with mass action kinetics satisfies conditions <a title=\"IC2\" href=\"http://reaction-networks.net/wiki/CoNtRol#Injectivity_condition_2_.28IC2.29\">IC2</a> and <a title=\"IC3\" href=\"http://reaction-networks.net/wiki/CoNtRol#Injectivity_condition_3_.28IC3.29\">IC3</a>");
-    strcpy(MAIC2pIC3, "Mass action kinetics: the system with mass action kinetics satisfies conditions <a title=\"IC2+\" href=\"http://reaction-networks.net/wiki/CoNtRol#Injectivity_condition_2.2B_.28IC2.2B.29\">IC2+</a> and <a title=\"IC3\" href=\"http://reaction-networks.net/wiki/CoNtRol#Injectivity_condition_3_.28IC3.29\">IC3</a>");
-    strcpy(MAIC2ppIC3, "Mass action kinetics: the system with mass action kinetics satisfies conditions <a title=\"IC2++\" href=\"http://reaction-networks.net/wiki/CoNtRol#Injectivity_condition_2.2B.2B_.28IC2.2B.2B.29\">IC2++</a> and <a title=\"IC3\" href=\"http://reaction-networks.net/wiki/CoNtRol#Injectivity_condition_3_.28IC3.29\">IC3</a>");
+    strcpy(IC1str, "General kinetics: no stoichiometry class includes more than one positive equilibrium. The system satisfies condition <a title=\"IC1\" href=\"http://reaction-networks.net/wiki/CoNtRol#Injectivity_condition_1_.28IC1.29\">IC1</a>");
+    strcpy(IC3str, "General kinetics: the fully open system is injective. The system satisfies condition <a title=\"IC3\" href=\"http://reaction-networks.net/wiki/CoNtRol#Injectivity_condition_3_.28IC3.29\">IC3</a>");
+    strcpy(IC13str, "General kinetics: no stoichiometry class includes more than one positive equilibrium, and the fully open system is injective. The system satisfies conditions <a title=\"IC1\" href=\"http://reaction-networks.net/wiki/CoNtRol#Injectivity_condition_1_.28IC1.29\">IC1</a> and <a title=\"IC3\" href=\"http://reaction-networks.net/wiki/CoNtRol#Injectivity_condition_3_.28IC3.29\">IC3</a>");
+    strcpy(IC1p3str, "General kinetics: no nontrivial stoichiometry class includes more than one equilibrium, and the fully open system is injective. The system satisfies conditions <a title=\"IC1+\" href=\"http://reaction-networks.net/wiki/CoNtRol#Injectivity_condition_1.2B_.28IC1.2B.29\">IC1+</a> and <a title=\"IC3\" href=\"http://reaction-networks.net/wiki/CoNtRol#Injectivity_condition_3_.28IC3.29\">IC3</a>");
+    strcpy(IC1pp3str, "General kinetics: no stoichiometry class includes more than one equilibrium, and the fully open system is injective. The system satisfies conditions <a title=\"IC1++\" href=\"http://reaction-networks.net/wiki/CoNtRol#Injectivity_condition_1.2B.2B_.28IC1.2B.2B.29\">IC1++</a> and <a title=\"IC3\" href=\"http://reaction-networks.net/wiki/CoNtRol#Injectivity_condition_3_.28IC3.29\">IC3</a>");
+    strcpy(MAIC2, "Mass action kinetics: no stoichiometry class includes more than one positive equilibrium. The system satisfies condition <a title=\"IC2\" href=\"http://reaction-networks.net/wiki/CoNtRol#Injectivity_condition_2_.28IC2.29\">IC2</a>");
+    strcpy(MAIC2p, "Mass action kinetics: no nontrivial stoichiometry class includes boundary equilibria or has more than one equilibrium. The system satisfies condition <a title=\"IC2+\" href=\"http://reaction-networks.net/wiki/CoNtRol#Injectivity_condition_2.2B_.28IC2.2B.29\">IC2+</a>");
+    strcpy(MAIC2pp, "Mass action kinetics: the system has no nonzero boundary equilibria and no stoichiometry class includes more than one equilibrium. The system satisfies condition <a title=\"IC2++\" href=\"http://reaction-networks.net/wiki/CoNtRol#Injectivity_condition_2.2B.2B_.28IC2.2B.2B.29\">IC2++</a>");
+    strcpy(MAIC3, "Mass action kinetics: the fully open system is injective. The system satisfies condition <a title=\"IC3\" href=\"http://reaction-networks.net/wiki/CoNtRol#Injectivity_condition_3_.28IC3.29\">IC3</a>");
+    strcpy(MAIC2IC3, "Mass action kinetics: no stoichiometry class includes more than one positive equilibrium, and the fully open system is injective. The system satisfies conditions <a title=\"IC2\" href=\"http://reaction-networks.net/wiki/CoNtRol#Injectivity_condition_2_.28IC2.29\">IC2</a> and <a title=\"IC3\" href=\"http://reaction-networks.net/wiki/CoNtRol#Injectivity_condition_3_.28IC3.29\">IC3</a>");
+    strcpy(MAIC2pIC3, "Mass action kinetics: no nontrivial stoichiometry class has boundary equilibria or includes more than one equilibrium, and the fully open system is injective. The system satisfies conditions <a title=\"IC2+\" href=\"http://reaction-networks.net/wiki/CoNtRol#Injectivity_condition_2.2B_.28IC2.2B.29\">IC2+</a> and <a title=\"IC3\" href=\"http://reaction-networks.net/wiki/CoNtRol#Injectivity_condition_3_.28IC3.29\">IC3</a>");
+    strcpy(MAIC2ppIC3, "Mass action kinetics: the system has no nonzero boundary equilibria, no stoichiometry class includes more than one equilibrium, and the fully open system is injective. The system satisfies conditions <a title=\"IC2++\" href=\"http://reaction-networks.net/wiki/CoNtRol#Injectivity_condition_2.2B.2B_.28IC2.2B.2B.29\">IC2++</a> and <a title=\"IC3\" href=\"http://reaction-networks.net/wiki/CoNtRol#Injectivity_condition_3_.28IC3.29\">IC3</a>");
   }
   else{
     strcpy(mpnestr, "MPNE");
     strcpy(IC1ppstr, "General kinetics: no stoichiometry class includes more than one equilibrium. The system satisfies condition IC1++");
     strcpy(IC1pstr, "General kinetics: no nontrivial stoichiometry class includes more than one equilibrium. The system satisfies condition IC1+");
-    strcpy(IC1str, "General kinetics: the system satisfies condition IC1");
-    strcpy(IC3str, "General kinetics: the system satisfies condition IC3");
-    strcpy(IC13str, "General kinetics: the system satisfies conditions IC1 and IC3");
-    strcpy(IC1pp3str, "General kinetics: no stoichiometry class includes more than one equilibrium; the fully open system is injective. The system satisfies conditions IC1++ and IC3");
-    strcpy(IC1p3str, "General kinetics: no nontrivial stoichiometry class includes more than one equilibrium; the fully open system is injective. The system satisfies conditions IC1+ and IC3");
-    strcpy(MAIC2, "Mass action kinetics: the system satisfies condition IC2");
-    strcpy(MAIC2p, "Mass action kinetics: the system satisfies condition IC2+");
-    strcpy(MAIC2pp, "Mass action kinetics: the system satisfies condition IC2++");
-    strcpy(MAIC3, "Mass action kinetics: the system satisfies condition IC3");
-    strcpy(MAIC2IC3, "Mass action kinetics: the system satisfies conditions IC2 and IC3");
-   strcpy(MAIC2pIC3, "Mass action kinetics: the system satisfies conditions IC2+ and IC3");
-   strcpy(MAIC2ppIC3, "Mass action kinetics: the system satisfies conditions IC2++ and IC3");
+    strcpy(IC1str, "General kinetics: no stoichiometry class includes more than one positive equilibrium. The system satisfies condition IC1");
+    strcpy(IC3str, "General kinetics: the fully open system is injective. The system satisfies condition IC3");
+    strcpy(IC13str, "General kinetics: no stoichiometry class includes more than one positive equilibrium, and the fully open system is injective. The system satisfies conditions IC1 and IC3");
+    strcpy(IC1pp3str, "General kinetics: no stoichiometry class includes more than one equilibrium, and the fully open system is injective. The system satisfies conditions IC1++ and IC3");
+    strcpy(IC1p3str, "General kinetics: no nontrivial stoichiometry class includes more than one equilibrium, and the fully open system is injective. The system satisfies conditions IC1+ and IC3");
+    strcpy(MAIC2, "Mass action kinetics: no stoichiometry class includes more than one positive equilibrium. The system satisfies condition IC2");
+    strcpy(MAIC2p, "Mass action kinetics: no nontrivial stoichiometry class includes boundary equilibria or has more than one equilibrium. The system satisfies condition IC2+");
+    strcpy(MAIC2pp, "Mass action kinetics: the system has no nonzero boundary equilibria and no stoichiometry class includes more than one equilibrium. The system satisfies condition IC2++");
+    strcpy(MAIC3, "Mass action kinetics: the fully open system is injective. The system satisfies condition IC3");
+    strcpy(MAIC2IC3, "Mass action kinetics: no stoichiometry class includes more than one positive equilibrium, and the fully open system is injective. The system satisfies conditions IC2 and IC3");
+   strcpy(MAIC2pIC3, "Mass action kinetics: no nontrivial stoichiometry class has boundary equilibria or includes more than one equilibrium, and the fully open system is injective. The system satisfies conditions IC2+ and IC3");
+   strcpy(MAIC2ppIC3, "Mass action kinetics: the system has no nonzero boundary equilibria, no stoichiometry class includes more than one equilibrium, and the fully open system is injective. The system satisfies conditions IC2++ and IC3");
   }
 
 
@@ -7328,8 +7327,8 @@ int analysereacs(const char fname[], int q, bool htmlswitch){
       fprintf(stdout, "This system has no siphons (the boundary includes no nontrivial equilbria).\n\n");
 
     if(totsiphons){
-      fprintf(stderr, "Siphons of the system:\n");
-      printsiphons(allsiphons, totsiphons, chems);
+	fprintf(stderr, "Siphons of the system:\n");
+	printsiphons(allsiphons, totsiphons, chems);
       fprintf(stderr, "Minimal siphons of the system:\n");
       printsiphons(allminsiphons, totminsiphons, chems);
 
@@ -7342,7 +7341,7 @@ int analysereacs(const char fname[], int q, bool htmlswitch){
       if(ALS_flg==1)
 	fprintf(stdout, "According to Angeli, De Leenheer and Sontag (J. Math Biol. 61(4), 2010) the system (with general kinetics) is globally convergent in the following sense: all positive initial conditions converge to an equilibrium which is the unique equilibrium on its stoichiometry class.\n\n");
       else if(ALS_flg==2){
-	fprintf(stdout, "According to Angeli, De Leenheer and Sontag (J. Math Biol. 61(4), 2010) the system (with general kinetics) is generically quasiconvergent: almost all positive conditions converge to the set of equilibria (the measure of the set of possibly non-convergent initial conditions is zero).\n\n");
+	fprintf(stdout, "According to Angeli, De Leenheer and Sontag (J. Math Biol. 61(4), 2010) the system (with general kinetics) is generically quasiconvergent: almost all positive initial conditions converge to the set of equilibria (the measure of the set of possibly non-convergent initial conditions is zero).\n\n");
       }
     }
 
@@ -7351,7 +7350,7 @@ int analysereacs(const char fname[], int q, bool htmlswitch){
       if(!totsiphons)
 	fprintf(stdout, "According to Donnell and Banaji (SIADS, 2013) the system (with general kinetics) is globally convergent in the following sense: all initial conditions converge to an equilibrium which is the unique equilibrium on its stoichiometry class, and is (for stoichiometry classes other than {0}) positive.\n\n");
       else if(persistflag)
-	fprintf(stdout, "According to Donnell and Banaji (SIADS, 2013) the system (with general kinetics) is globally convergent in the following sense: all initial conditions on any nontrivial stoichiometry class converge to an equilibrium which is the unique equilibrium on its stoichiometry class.\n\n");
+	fprintf(stdout, "According to Donnell and Banaji (SIADS, 2013) the system (with general kinetics) is globally convergent in the following sense: all initial conditions on any nontrivial stoichiometry class converge to an equilibrium which is the unique equilibrium on its stoichiometry class, and is (for stoichiometry classes other than {0}) positive.\n\n");
       }
       else if (PM1_flg==2){
 	fprintf(stdout, "According to Donnell and Banaji (SIADS, 2013) the system (with general kinetics) is locally convergent in the following sense: every positive initial condition is locally asymptotically stable.\n\n");
@@ -7378,20 +7377,20 @@ int analysereacs(const char fname[], int q, bool htmlswitch){
       }
       if(csdflag==2){
 	if(totsiphons==0)
-	  fprintf(stdout, "%s. In fact, this reaction structure satisfies conditions IC1++ and IC3 with *any stoichiometries*.\n", IC1pp3str);
+	  fprintf(stdout, "%s. (In fact, this reaction structure satisfies conditions IC1++ and IC3 with *any stoichiometries*.)\n", IC1pp3str);
 	else if(persistflag)
-	  fprintf(stdout, "%s. In fact, this reaction structure satisfies conditions IC1+ and IC3 with *any stoichiometries*.\n", IC1p3str);
+	  fprintf(stdout, "%s. (In fact, this reaction structure satisfies conditions IC1+ and IC3 with *any stoichiometries*.)\n", IC1p3str);
 	else
-	  fprintf(stdout, "%s. In fact, this reaction structure satisfies conditions IC1 and IC3 with *any stoichiometries*.\n", IC13str);
+	  fprintf(stdout, "%s. (In fact, this reaction structure satisfies conditions IC1 and IC3 with *any stoichiometries*.)\n", IC13str);
       }
       else if(ssdflag){
 	if(ssdflag==2 && csdflag==1){
 	if(totsiphons==0)
-	  fprintf(stdout, "%s. In fact, this reaction structure satisfies conditions IC1++ and IC3 with *any stoichiometries*.\n", IC1pp3str);
+	  fprintf(stdout, "%s. (In fact, this reaction structure satisfies conditions IC1++ and IC3 with *any stoichiometries*.)\n", IC1pp3str);
 	else if(persistflag)
-	  fprintf(stdout, "%s. In fact, this reaction structure satisfies conditions IC1+ and IC3 with *any stoichiometries*.\n", IC1p3str);
+	  fprintf(stdout, "%s. (In fact, this reaction structure satisfies conditions IC1+ and IC3 with *any stoichiometries*.)\n", IC1p3str);
 	else
-	  fprintf(stdout, "%s. In fact, this reaction structure satisfies conditions IC1 and IC3 with *any stoichiometries*.\n", IC13str);
+	  fprintf(stdout, "%s. (In fact, this reaction structure satisfies conditions IC1 and IC3 with *any stoichiometries*.)\n", IC13str);
 	}
 	else if(ssdflag==2){
 	  if(totsiphons==0)
@@ -7403,11 +7402,11 @@ int analysereacs(const char fname[], int q, bool htmlswitch){
 	}
 	else if(csdflag==1){
 	  if(totsiphons==0)
-	    fprintf(stdout, "%s. This reaction structure satisfies condition IC1++ with *any stoichiometries*.\n", IC1ppstr);
+	    fprintf(stdout, "%s. (In fact, this reaction structure satisfies condition IC1++ with *any stoichiometries*.)\n", IC1ppstr);
 	  else if(persistflag)
-	    fprintf(stdout, "%s. This reaction structure satisfies condition IC1+ with *any stoichiometries*.\n", IC1pstr);
+	    fprintf(stdout, "%s. (In fact, this reaction structure satisfies condition IC1+ with *any stoichiometries*.)\n", IC1pstr);
 	  else
-	    fprintf(stdout, "%s. This reaction structure satisfies condition IC1 with *any stoichiometries*.\n", IC1str);
+	    fprintf(stdout, "%s. (In fact, this reaction structure satisfies condition IC1 with *any stoichiometries*.)\n", IC1str);
 	}
 	else{
 	  if(totsiphons==0)
