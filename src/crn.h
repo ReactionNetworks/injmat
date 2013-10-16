@@ -81,7 +81,7 @@ int **readmatrixfromstr(char *str, int *nlen, int *mlen);
 int readmatpairfromstr(char *str, int *nlen, int *mlen, int ***mat1, int ***mat2);
 int mat_signpat_compat(int **imat1, int **imat2, int n, int m, int q);
 int getreac(char *str, char ***leftchems, int **leftstoics, int *numleft, char ***rightchems, int **rightstoics, int *numright, int *rev);
-int chemgts2(char *s, char ***v, char sep);
+int chemgts2a(char *s, char ***v, char sep);
 int freearraydat(char **array, int lim);
 int addv1(int k, char *s, char ***t);
 int isinarray(char *v[], int numv, char *s);

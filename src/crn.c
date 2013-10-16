@@ -5850,11 +5850,11 @@ int getreac(char *str, char ***leftchems, int **leftstoics, int *numleft, char *
   //left of reaction
 
 
-  (*numleft)=chemgts2(left, &v1, '+');
+  (*numleft)=chemgts2a(left, &v1, '+');
   (*leftstoics)=(int*) malloc(sizeof(int) * (*numleft));
   (*leftchems)=(char**) malloc(sizeof(char*) * (*numleft));
   for(j=0;j<(*numleft);j++){
-    num1=chemgts2(v1[j], &tmp, ' ');
+    num1=chemgts2a(v1[j], &tmp, ' ');
 
     if(num1==1){
       (*leftstoics)[j]=split1(v1[j]);(*leftchems)[j]=split2(v1[j]);
@@ -5876,11 +5876,11 @@ int getreac(char *str, char ***leftchems, int **leftstoics, int *numleft, char *
 
   //right of reaction
 
-  (*numright)=chemgts2(right, &v1, '+');
+  (*numright)=chemgts2a(right, &v1, '+');
   (*rightstoics)=(int*) malloc(sizeof(int) * (*numright));
   (*rightchems)=(char**) malloc(sizeof(char*) * (*numright));
   for(j=0;j<(*numright);j++){
-    num1=chemgts2(v1[j], &tmp, ' ');  
+    num1=chemgts2a(v1[j], &tmp, ' ');  
   
     if(num1==1){
       (*rightstoics)[j]=split1(v1[j]);(*rightchems)[j]=split2(v1[j]);
@@ -5930,10 +5930,11 @@ char *lrtrim(char s[]){
   return p;
 }
 
-int chemgts2(char *s, char ***v, char sep){
+int chemgts2a(char *s, char ***v, char sep){
   // sep is the separator
   int i, j, k;
   int numgets=0;
+  char *tmp;
   i=0, k=0;
 
   (*v)=NULL;
@@ -5941,8 +5942,12 @@ int chemgts2(char *s, char ***v, char sep){
     j=0;
     while((s[k] == sep) || isspace((int) s[k])){k++;} // skip white space
     while((s[k] != sep) && !isend(s[k])){j++;k++;}
-    if(j>0)
-      numgets++;
+    if(j>0){
+      tmp=lrtrim(strchop2(s, k-j, j));
+      if(!ispureint(tmp) || atoi(tmp)!=0)
+	numgets++;
+      free(tmp);
+    }
   }
   if(numgets>0){
     (*v)=(char**) malloc(sizeof(char*) * numgets);
@@ -5951,8 +5956,12 @@ int chemgts2(char *s, char ***v, char sep){
       j=0;
       while((s[k] == sep) || isspace((int) s[k])){k++;} // skip white space
       while((s[k] != sep) && !isend(s[k])){j++;k++;}
-      if(j>0)
-	(*v)[i++] = lrtrim(strchop2(s, k-j, j));
+      if(j>0){
+	tmp=lrtrim(strchop2(s, k-j, j));
+	if(!ispureint(tmp) || atoi(tmp)!=0)
+	  (*v)[i++] = lrtrim(strchop2(s, k-j, j));
+	free(tmp);
+      }
     }
   }
   return numgets;
