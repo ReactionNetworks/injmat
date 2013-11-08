@@ -6715,7 +6715,7 @@ bool weak_rev(int **imatir, int Srank, int **stoichl, int **stoichr, int n, int 
     }
   }
 
-  if(!(*def1flg)){
+  if((*deficiency) && !(*def1flg)){
     fprintf(stdout, "The network is not deficiency zero and fails the conditions of the deficiency one theorem.\n\n");
   }
 
