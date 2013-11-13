@@ -1722,6 +1722,7 @@ int S2b(int **S, int **V, int n, int m, int ***imat1, int **valsvec, int **indsv
 
 
 
+
 //detsk has dimension (0, comb(n, k-1), 0, comb(m, k-1))
 
 int **detsk(int **imat, int n, int m, int k){
@@ -6657,11 +6658,17 @@ bool weak_rev(int **imatir, int Srank, int **stoichl, int **stoichr, int n, int 
     fprintf(stderr, "\n");
   }
 
-  if(is_sublist(CC,totCC,SCC,totSCC))
+  if(is_sublist(CC,totCC,SCC,totSCC)){
+    //fprintf(stdout, "WRflag\n");//for batch checking
     flag=1; // weakly reversible
+  }
 
   (*deficiency)=totcmplx-totCC-Srank;//rank of CRN
   //fprintf(stderr, "CRNdef=%d\n", (*deficiency));
+
+  //if(!(*deficiency)){
+    //fprintf(stdout, "DEF0\n");//for batch checking
+  //}
 
   if((*deficiency)){//nonzero then does CRN satisfy the def. one thm?
     //Does each CC contain exactly one terminal SCC?
@@ -6687,8 +6694,9 @@ bool weak_rev(int **imatir, int Srank, int **stoichl, int **stoichr, int n, int 
 	break;
     }
     //does each subnetwork have deficiency <=1?
-    (*def1flg)=1;totdef=0;
+    (*def1flg)=0;totdef=0;
     if(onetflg){//Each CC contains exactly one terminal SCC
+      (*def1flg)=1;
       for(i=0;i<n;i++){xc[i]=i;}//all rows
       //compute the deficiency of each CC = numcomp-1-Srank;
       for(i=0;i<totCC;i++){//each CC
@@ -6709,11 +6717,12 @@ bool weak_rev(int **imatir, int Srank, int **stoichl, int **stoichr, int n, int 
       }
     }
     //Is the sum of subnetwork deficiencies equal to the network deficiency?
-    if((*def1flg)){
-      if(totdef!=(*deficiency))
-	(*def1flg)=0;
-    }
+    if((*def1flg) && totdef!=(*deficiency))
+      (*def1flg)=0;
   }
+  //  if((*def1flg)){
+  //   fprintf(stdout, "DEF1\n");//for batch checking
+  //  }
 
   if((*deficiency) && !(*def1flg)){
     fprintf(stdout, "The network is not deficiency zero and fails the conditions of the deficiency one theorem.\n\n");
@@ -7309,8 +7318,12 @@ int analysereacs(const char fname[], int q, bool htmlswitch){
   bool weakr, haszerocomplex=0,zeronotterm,zeroinitial,SSPO=1,posSSPO=1;
   char *tmpstr;
 
-  //Version 1=2013, .6=June, .1 = revision
-  fprintf(stdout, "Analysereacs version 1.6.2. (Please note that this is work in progress.)\n\n");
+  //SauroSplit((char *)("datfiles/d_d2s3r3.txt"), (char *)("datfiles/s3r3/s3r3"));
+  //return 0;
+
+
+  //Version 1=2013, .11=June, .1 = revision
+  fprintf(stdout, "Analysereacs version 1.11.1. (Please note that this is work in progress.)\n\n");
 
   str=readfileintostr(fname);
   if(isonlyspace(str)){
@@ -7398,6 +7411,7 @@ int analysereacs(const char fname[], int q, bool htmlswitch){
       free_imatrix(imat4, 0, nlen-1, 0, cols3-1);
       free_imatrix(stoichl, 0, nlen-1, 0, cols3-1);
       free_imatrix(stoichr, 0, nlen-1, 0, cols3-1);
+      freearraydat(chems, nlen);
       return -1;
     }
     free(str);
@@ -7634,6 +7648,7 @@ int analysereacs(const char fname[], int q, bool htmlswitch){
 
       compatflag=arecompat(imat1, imat2, nlen, mlen, q);
       if(compatflag==3){//matrix and sign-pattern are compatible and r-strongly compatible
+	//fprintf(stdout, "NR***\nGKIC1\nGKIC3\nMAIC2\nMAIC3\n");//for batch checking
 	if(totsiphons==0)
 	  fprintf(stdout, "%s.\n", IC1pp3str);
 	else if(persistflag)
@@ -7642,7 +7657,7 @@ int analysereacs(const char fname[], int q, bool htmlswitch){
 	  fprintf(stdout, "%s.\n", IC13str);
       }
       else if(compatflag==2){ //matrix and sign-pattern are compatible but not r-strongly compatible
-
+	//fprintf(stdout, "NR***\nGKIC3\nMAIC3\n");//for batch checking
 	if(SSPO && posSSPO && notallbd)//possibly interior equilibria
 	  tmpstr=notrcmpt1;
 	else
@@ -7650,6 +7665,7 @@ int analysereacs(const char fname[], int q, bool htmlswitch){
 
 	MAcompatflag=mats_compat(imat3, imat4, nlen, cols3, q);
 	if(MAcompatflag==3 || MAcompatflag==1 || MAcompatflag==-1){// (stoich and exp) matrices are r-strongly compatible or r-strongly negatively compatible
+	  //fprintf(stdout, "MAIC2\n");//for batch checking
 	  if(totsiphons==0)
 	    fprintf(stdout, "%s.\n%s.\n%s.\n", IC3str, tmpstr, MAIC2pp);
 	  else if(persistflag)
@@ -7665,8 +7681,10 @@ int analysereacs(const char fname[], int q, bool htmlswitch){
 	}
       }
       else if(compatflag==1 || compatflag==-1){//  matrix and sign-pattern are r-strongly compatible or r-strongly negatively compatible but are not compatible
+	//fprintf(stdout, "NR***\nGKIC1\nMAIC2\n");//for batch checking
 	MAcompatflag=mats_compat(imat3, imat4, nlen, cols3, q);
 	if(MAcompatflag==3 || MAcompatflag==2){// (stoich and exp) matrices are compatible
+	  //fprintf(stdout, "MAIC3\n");//for batch checking
 	  if(totsiphons==0)
 	    fprintf(stdout, "%s.\n%s.\n%s.\n", IC1ppstr, notSSD, MAIC3);
 	  else if(persistflag)
@@ -7691,6 +7709,7 @@ int analysereacs(const char fname[], int q, bool htmlswitch){
 
 	MAcompatflag=mats_compat(imat3, imat4, nlen, cols3, q);
 	if(MAcompatflag==3){// (stoich and exp) matrices are compatible and r-strongly compatible
+	  //fprintf(stdout, "NR***\nMAIC2\nMAIC3\n");//for batch checking
 	  if(totsiphons==0)
 	    fprintf(stdout, "%s.\n%s.\n%s.\n", notSSD, tmpstr, MAIC2ppIC3);
 	  else if(persistflag)
@@ -7698,9 +7717,12 @@ int analysereacs(const char fname[], int q, bool htmlswitch){
 	  else
 	    fprintf(stdout, "%s.\n%s.\n%s.\n", notSSD, tmpstr, MAIC2IC3);
 	}
-	else if(MAcompatflag==2) //(stoich and exp) matrices are compatible but not r-strongly compatible or r-strongly negatively compatible
+	else if(MAcompatflag==2){ //(stoich and exp) matrices are compatible but not r-strongly compatible or r-strongly negatively compatible
+	  //fprintf(stdout, "NR***\nMAIC3\n");//for batch checking
 	  fprintf(stdout, "%s.\n%s.\n%s.\n%s.\n", notSSD, tmpstr, MAIC3, notrWSD);
+	}
 	else if(MAcompatflag==1 || MAcompatflag==-1){ //(stoich and exp) matrices are r-strongly compatible or r-strongly negatively compatible, but not compatible
+	  //fprintf(stdout, "NR***\nMAIC2\n");//for batch checking
 	  if(totsiphons==0)
 	    fprintf(stdout, "%s.\n%s.\n%s.\n", tmpstr, MAIC2pp, notWSD);
 	  else if(persistflag)
@@ -7709,6 +7731,7 @@ int analysereacs(const char fname[], int q, bool htmlswitch){
 	    fprintf(stdout, "%s.\n%s.\n%s.\n", tmpstr, MAIC2, notWSD);
 	}
 	else{
+	  //fprintf(stdout, "NR***\n");//for batch checking
 	  //	allminorsigns(imat3, imat4, nlen, cols3, q);
 	  if(SSPO && posSSPO && notallbd)//possibly interior equilibria
 	    fprintf(stdout, "%s.\n%s.\n%s.\n", notrcmpt1, notrWSD, notWSD);
@@ -7725,6 +7748,7 @@ int analysereacs(const char fname[], int q, bool htmlswitch){
     free_imatrix(imat4, 0, nlen-1, 0, cols3-1);
     free_imatrix(stoichl, 0, nlen-1, 0, cols3-1);
     free_imatrix(stoichr, 0, nlen-1, 0, cols3-1);
+    freearraydat(chems, nlen);
   }
   //
   // The file contains two matrices
@@ -9149,3 +9173,257 @@ int submatrank(int **A, int *vec1, int n, int *vec2, int m){
   return J.rank();
 }
 
+bool rceq(int **G1, int **V1, int **G2, int **V2, int m, int k){
+  int i;
+  for(i=0;i<m;i++){
+    if((G1[k][i]!=G2[k][i]) || (V1[k][i]!=V2[k][i]))
+      return 0;
+  }
+  return 1;
+}
+
+bool DSRGI(int **G1, int **V1, int **G2, int **V2, int n, int m, int *level, bool *vec){
+  int k;
+  if(!(*level))
+    return 1;
+  for(k=0;k<n;k++){
+    if(vec[k] && rceq(G1,V1,G2,V2,m,k)){
+      vec[k]=0;(*level)--;
+      if(DSRGI(G1,V1,G2,V2,n,m,level,vec))
+	return 1;
+      else{
+	vec[k]=1;
+	(*level)++;
+      }
+    }
+  }
+  return 0;
+}
+
+bool DSRGIwrap(int **G1, int **V1, int **G2, int **V2, int n, int m){
+  int i,level=n;
+  bool vec[n];
+  for(i=0;i<n;i++)
+    vec[i]=1; // not yet used
+
+  return DSRGI(G1,V1,G2,V2,n,m,&level,vec);
+}
+
+
+int ReacIso(const char fname[], int q){
+
+  int **GG1, **VV1, **G1, **V1, **L1, **R1, col1, mlen1=0, nlen1=0;
+  int **GG2, **VV2, **G2, **V2, **L2, **R2, col2, mlen2=0, nlen2=0;
+  char **chems1, **chems2;
+  char *str1, *str2;
+  long pos=0;
+  char *line;
+  int allrev, allgood;
+  bool flg, haszerocomplex=0;
+
+  str1=readfileintostr(fname);
+  if(isonlyspace(str1)){
+   fprintf(stderr, "\n        **ERROR**\nNothing found in file \"%s\". EXITING.\n          *****\n", fname);
+    free(str1);
+    return -1;
+  }
+  line = getlinefromstr(&pos, str1);
+  while(strcmp(line, "")!=0){
+    if (iscomline(line) && strstr(line, "*****")){ // separator character
+      flg=1;
+      str2=strdup(str1+pos);
+      str1[pos]=0;free(line);line=NULL;
+      break;
+    }
+    free(line);
+    line = getlinefromstr(&pos, str1);
+  }
+  if(line)
+    free(line);
+  if(!flg){
+    fprintf(stderr, "ERROR: you need to provide two reaction systems.\n");
+    return -1;
+  }
+
+
+  // 
+  // The file contains reactions
+  //
+
+  if(!getallreacs(str1, &GG1, &VV1, &G1, &V1, &L1, &R1, &chems1, &haszerocomplex, &nlen1, &mlen1, &col1, &allrev, &allgood)){
+    free(str1);
+    fprintf(stderr, "ERROR: Couldn't read the first set of reactions in file \"%s\". EXITING. \n", fname);
+  }
+  if(!getallreacs(str2, &GG2, &VV2, &G2, &V2, &L2, &R2, &chems2, &haszerocomplex, &nlen2, &mlen2, &col2, &allrev, &allgood)){
+    free(str2);
+    fprintf(stderr, "ERROR: Couldn't read the first set of reactions in file \"%s\". EXITING. \n", fname);
+  }
+
+  if(nlen1!=nlen2 || mlen1!=mlen2)
+    fprintf(stderr, "not isomorphic (dimensions don't match)\n");
+  else
+    fprintf(stderr, "areiso=%d\n", DSRGIwrap(G1, V1, G2, V2, nlen1, mlen1));
+
+  fprintf(stderr, "The irreversible stoichiometric matrix:\n\n");
+  printmat1(chems1, G1, nlen1, col1);
+  fprintf(stderr, "The matrix of powers (mass action):\n\n");
+  printmat1(chems1, V1, nlen1, col1);
+
+  fprintf(stderr, "The irreversible stoichiometric matrix:\n\n");
+  printmat1(chems2, G2, nlen2, col2);
+  fprintf(stderr, "The matrix of powers (mass action):\n\n");
+  printmat1(chems2, V2, nlen2, col2);
+
+  free(str1);free(str2);
+
+  free_imatrix(GG1, 0, nlen1-1, 0, mlen1-1);
+  free_imatrix(VV1, 0, nlen1-1, 0, mlen1-1);
+  free_imatrix(G1, 0, nlen1-1, 0, col1-1);
+  free_imatrix(V1, 0, nlen1-1, 0, col1-1);
+  free_imatrix(L1, 0, nlen1-1, 0, col1-1);
+  free_imatrix(R1, 0, nlen1-1, 0, col1-1);
+  freearraydat(chems1, nlen1);
+
+  free_imatrix(GG2, 0, nlen2-1, 0, mlen2-1);
+  free_imatrix(VV2, 0, nlen2-1, 0, mlen2-1);
+  free_imatrix(G2, 0, nlen2-1, 0, col2-1);
+  free_imatrix(V2, 0, nlen2-1, 0, col2-1);
+  free_imatrix(L2, 0, nlen2-1, 0, col2-1);
+  free_imatrix(R2, 0, nlen2-1, 0, col2-1);
+  freearraydat(chems2, nlen2);
+
+  return 0;
+}
+
+// Get a reaction as a single line in Sauro format
+// Print it as a CRN to file fout. 
+
+int getintline(char *s, char *fout){
+  int i, j, jj, k;
+  char *tmp;
+  int nR,nS;
+  int dg1, dg2;//assume reac then substrate
+  int **matl, **matr;
+  FILE *fd;
+  bool flg;
+  fd = fopen(fout, "w");
+  if(!fd){
+    fprintf(stderr, "ERROR in getintline: \"%s\" could not be opened for writing.\n", fout);
+    exit(0);
+  }
+  //create a left array and a right array
+  i=0;k=0;j=0;
+  while(s[k] && !isdigit((int) s[k])){k++;}
+  while(s[k] && isdigit((int) s[k])){j++;k++;}
+  tmp=strchop2(s, k-j, j);nR=atoi(tmp);free(tmp);//number of reactions
+  j=0;
+  while(s[k] && !isdigit((int) s[k])){k++;}
+  while(s[k] && isdigit((int) s[k])){j++;k++;}
+  tmp=strchop2(s, k-j, j);nS=atoi(tmp);free(tmp);//number of species
+  j=0;
+
+  if(!nR || !nS){
+    fprintf(stderr, "ERROR in getintline: \"%s\" is not a valid CRN as either no reactions or no species.\n", s);
+    exit(0);
+  }
+
+  //initialise matrices
+  matl=imatrix(0, nS-1, 0, nR-1);
+  matr=imatrix(0, nS-1, 0, nR-1);
+  for(i=0;i<nS;i++){
+    for(jj=0;jj<nR;jj++){
+      matl[i][jj]=0;matr[i][jj]=0;
+    }
+  }
+
+  //create left and right stoichiometric matrices
+  while(s[k]){
+    while(s[k] && !isdigit((int) s[k])){k++;}
+    while(s[k] && isdigit((int) s[k])){j++;k++;}
+    tmp=strchop2(s, k-j, j);dg1=atoi(tmp);free(tmp);
+    j=0;
+
+    while(s[k] && !isdigit((int) s[k])){k++;}
+    while(s[k] && isdigit((int) s[k])){j++;k++;}
+    tmp=strchop2(s, k-j, j);dg2=atoi(tmp);free(tmp);
+    j=0;
+
+    if(dg1<dg2)//R-to-S
+      (matr[dg2-nR][dg1])++;
+    else//S-to-R
+      (matl[dg1-nR][dg2])++;
+  }
+
+  //output to file
+  for(i=0;i<nR;i++){
+    flg=0;
+    for(j=0;j<nS;j++){
+      if(matl[j][i]){
+	if(!flg){
+	  if(matl[j][i]!=1)
+	    fprintf(fd, "%dA%d",matl[j][i],j);
+	  else
+	    fprintf(fd, "A%d",j);
+	  flg=1;
+	}
+	else{
+	  if(matl[j][i]!=1)
+	    fprintf(fd, "+%dA%d",matl[j][i],j);
+	  else
+	    fprintf(fd, "+A%d",j);
+	}
+      }
+    }
+    fprintf(fd, " --> ");
+    flg=0;
+    for(j=0;j<nS;j++){
+      if(matr[j][i]){
+	if(!flg){
+	  if(matr[j][i]!=1)
+	    fprintf(fd, "%dA%d",matr[j][i],j);
+	  else
+	    fprintf(fd, "A%d",j);
+	  flg=1;
+	}
+	else{
+	  if(matr[j][i]!=1)
+	    fprintf(fd, "+%dA%d",matr[j][i],j);
+	  else
+	    fprintf(fd, "+A%d",j);
+	}
+      }
+    }
+    fprintf(fd, "\n");
+  }
+
+  free_imatrix(matl, 0, nS-1, 0, nR-1);
+  free_imatrix(matr, 0, nS-1, 0, nR-1);
+
+  fclose(fd);
+  return 0;
+}
+
+// Read a list of reactions in Sauro Format 
+// (http://128.208.17.26/NetworkEnumeration)
+// and output these as individual files
+
+int SauroSplit(char *fname, char *prefix){
+  FILE *fd;
+  int i;
+  char oneline[1000];
+  char fout[30];
+  fd = fopen(fname, "r");
+  if(!fd){
+    fprintf(stderr, "ERROR in getintline: \"%s\" could not be opened for reading.\n", fname);
+    exit(0);
+  }
+  while(getline0(fd, oneline, 1000) > 0){//get each line
+    if(!iscomline(oneline)){
+      i++;sprintf(fout, "%s%4.4d",prefix,i);
+      fprintf(stderr, "fout = %s\n", fout);
+      getintline(oneline, fout);
+    }
+  }
+  fclose(fd);
+  return 0;
+}

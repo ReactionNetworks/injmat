@@ -121,3 +121,5 @@ int **cpmat(int **mat, int n, int m);
 matrix imattoexmat(int **A, int n, int m);
 int matrank(int **A, int n, int m);
 int submatrank(int **A, int *vec1, int n, int *vec2, int m);
+int ReacIso(const char fname[], int q);
+int SauroSplit(char *fname, char *prefix);
