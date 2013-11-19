@@ -4594,8 +4594,7 @@ char *readfileintostr(const char fname[]){
   fd = fopen(fname, "r");
   if(!fd){
     fprintf(stderr, "ERROR in readfileintostr: \"%s\" could not be opened for reading.\n", fname);
-    str=strdup("");
-    return str;
+    exit(0);
   }
 
   while((c=getc(fd)) != EOF)
@@ -4603,7 +4602,7 @@ char *readfileintostr(const char fname[]){
  
   i++;
   str = (char*) malloc(sizeof(char) * (i));
-  // second parse - get number of non-comment lines
+  // second parse
 
   rewind(fd);
   i=0;
@@ -6286,14 +6285,11 @@ int hasposkervec(int **imat1, int nlen, int mlen, bool strict){
     glp_set_row_bnds(lp, j, GLP_FX, 0.0, 0.0);
 
   //number of variables (cols) = row dimension of Gamma
-  glp_add_cols(lp, nlen);
-  for(j=1;j<nlen+1;j++){
+  glp_add_cols(lp, nlen);m=1;
+  for(j=1;j<nlen+1;j++){//col indices
     glp_set_col_bnds(lp, j, GLP_LO, tol, 0.0);// to ensure positivity: could introduce false negatives. 
     glp_set_obj_coef(lp, j, 1.0); // objective function
-  }
 
-  m=1;
-  for(j=1;j<nlen+1;j++){//col indices
     ia[m]=1;ja[m]=j;ar[m]=1.0;//boundedness constraint
     m++;
     for(l=2;l<2+mlen;l++){//row indices
@@ -6309,14 +6305,86 @@ int hasposkervec(int **imat1, int nlen, int mlen, bool strict){
   glp_simplex(lp, &parm);//can be NULL
   /* fprintf(stderr, "**%d, %d\n", glp_get_status(lp), GLP_OPT); */
   lpstat=glp_get_status(lp);
-  if(strict){// no positive vector
+  if(strict){// probably no positive vector
     if(lpstat!=GLP_OPT && lpstat!=GLP_FEAS)// infeasible
-      goodflag=-1;//probably!
+      goodflag=-1;//probably (unless a very marginally positive vector)!
   }
   else{// no nonnegative vector (must have z value 10 if it exists)
     if(lpstat==GLP_OPT && (z=glp_get_obj_val(lp))<0.01) // solution is zero
       goodflag=0;
   }
+  /* z = glp_get_obj_val(lp); */
+  /* fprintf(stderr, "z = %.2f\n", z); */
+ 
+  glp_delete_prob(lp);
+  free ((char *)(ia));free ((char *)(ja));free ((char *)(ar));
+
+  return goodflag;
+}
+
+int colsum(int **imat1, int nlen, int mlen, int j){
+  int i, tot=0;
+  if(j>=mlen){
+    fprintf(stderr, "ERROR in colsum: j out of range. Exiting.\n");
+    exit(0);
+  }
+  for(i=0;i<nlen;i++)
+    tot+=imat1[i][j];
+  return tot;
+}
+
+// Does imat1 have a nonnegative vector in its image?
+// if yes, stoichiometry classes unbounded...
+
+int hasposimvec(int **imat1, int nlen, int mlen){
+  int j,l,m,lpstat,csum;
+  int *ia, *ja;
+  double *ar;
+  int goodflag=1;
+  glp_prob *lp;
+  glp_smcp parm;
+
+  glp_init_smcp(&parm);
+  parm.msg_lev = GLP_MSG_OFF;
+
+  ia=(int *)malloc((size_t) ((1+(mlen+1)*(nlen+1))*sizeof(int)));
+  ja=(int *)malloc((size_t) ((1+(mlen+1)*(nlen+1))*sizeof(int)));
+  ar=(double *)malloc((size_t) ((1+(mlen)*(nlen+1))*sizeof(double)));
+
+  lp= glp_create_prob();
+  glp_set_obj_dir(lp, GLP_MAX);
+  //number of constraints (rows) = row dimension of Gamma + boundedness constraint
+  glp_add_rows(lp, 1+nlen);
+  glp_set_row_bnds(lp, 1, GLP_DB, 1.0, 10.0);
+  for(j=2;j<nlen+2;j++)
+    glp_set_row_bnds(lp, j, GLP_LO, 0.0, 0.0);
+
+  //number of variables (cols) = col dimension of Gamma
+  glp_add_cols(lp, mlen);
+  m=1;
+  for(j=1;j<mlen+1;j++){
+    glp_set_col_bnds(lp, j, GLP_FR, 0.0, 0.0);// free
+    csum=colsum(imat1, nlen, mlen, j-1);
+    glp_set_obj_coef(lp, j, csum); // objective function
+    ia[m]=1;ja[m]=j;ar[m]=csum;//boundedness constraint
+    m++;
+    for(l=2;l<2+nlen;l++){//row indices
+      ia[m]=l;ja[m]=j;ar[m]=imat1[l-2][j-1];
+      m++;
+    }
+  }
+
+  glp_load_matrix(lp, m-1, ia, ja, ar);
+
+  //glp_write_lp(lp, NULL,"tmpfile1.glp");
+
+  glp_simplex(lp, &parm);//can be NULL
+  /* fprintf(stderr, "**%d, %d\n", glp_get_status(lp), GLP_OPT); */
+  lpstat=glp_get_status(lp);
+
+  if(lpstat==GLP_NOFEAS) // no feasible solution
+    goodflag=0;
+
   /* z = glp_get_obj_val(lp); */
   /* fprintf(stderr, "z = %.2f\n", z); */
  
@@ -6339,6 +6407,14 @@ int hasposrkervec(int **imat1, int nlen, int mlen, bool strict){
   int flg;
   int **tmp=transposemat(imat1,nlen,mlen);
   flg=hasposkervec(tmp,mlen,nlen,strict);
+  free_imatrix(tmp,0,mlen-1,0,nlen-1);
+  return flg;
+}
+
+int hasposlimvec(int **imat1, int nlen, int mlen){
+  int flg;
+  int **tmp=transposemat(imat1,nlen,mlen);
+  flg=hasposimvec(tmp,mlen,nlen);
   free_imatrix(tmp,0,mlen-1,0,nlen-1);
   return flg;
 }
@@ -6525,7 +6601,7 @@ int isterm(int *SCCj,int *CCj,int **cmpmat,int totcmplx){
 // It could be more efficient to check each
 // CC is an SCC as it is computed. 
 
-bool weak_rev(int **imatir, int Srank, int **stoichl, int **stoichr, int n, int m, int *numcomp, int *numlink, bool haszero, bool *zeronotterm, bool *zeroinitial, bool *def1flg, int *deficiency, char **chems, bool q){
+bool weak_rev(int **imatir, int Srank, int **stoichl, int **stoichr, int n, int m, int *numcomp, int *numlink, bool haszero, bool *zeronotterm, bool *zeroinitial, bool *def1flg, int *deficiency, char **chems, bool q, bool statswitch){
   //stoichl is the left stoichiometric matrix; stoichr is the right stoichiometric matrix
   int i,j,jj,k,m1,totcmplx=0,zeroint;
   int **stoichlt, **stoichrt; //for transposed matrices
@@ -6659,16 +6735,18 @@ bool weak_rev(int **imatir, int Srank, int **stoichl, int **stoichr, int n, int 
   }
 
   if(is_sublist(CC,totCC,SCC,totSCC)){
-    //fprintf(stdout, "WRflag\n");//for batch checking
+    if(statswitch)
+      fprintf(stdout, "WRflag\n");//for batch checking
     flag=1; // weakly reversible
   }
 
   (*deficiency)=totcmplx-totCC-Srank;//rank of CRN
   //fprintf(stderr, "CRNdef=%d\n", (*deficiency));
 
-  //if(!(*deficiency)){
-    //fprintf(stdout, "DEF0\n");//for batch checking
-  //}
+
+  if(statswitch &&!(*deficiency)){
+    fprintf(stdout, "DEF0\n");//for batch checking
+  }
 
   if((*deficiency)){//nonzero then does CRN satisfy the def. one thm?
     //Does each CC contain exactly one terminal SCC?
@@ -6720,9 +6798,9 @@ bool weak_rev(int **imatir, int Srank, int **stoichl, int **stoichr, int n, int 
     if((*def1flg) && totdef!=(*deficiency))
       (*def1flg)=0;
   }
-  //  if((*def1flg)){
-  //   fprintf(stdout, "DEF1\n");//for batch checking
-  //  }
+  if(statswitch && (*def1flg)){
+    fprintf(stdout, "DEF1\n");//for batch checking
+  }
 
   if((*deficiency) && !(*def1flg)){
     fprintf(stdout, "The network is not deficiency zero and fails the conditions of the deficiency one theorem.\n\n");
@@ -6968,7 +7046,8 @@ int ALS_JMB_2009(int **im1, int **im2, int n, int m, int allgood, int bdclass, i
 
     // is the I-graph of the reverse product connected?
     if(connected_prod(imat2,imat1,m,n)){// strong monotonicity
-      if(hasposrkervec(imat1,n,m,1)==1)//Condition (9) in ref.
+      //if(hasposrkervec(imat1,n,m,1)==1)//Condition (9) in ref.
+      if(!hasposlimvec(imat1,n,m))//Condition (9) in ref.
 	flg=1;
       else if(!hasposrkervec(imat1,n,m,0))//Condition (10) in ref.
 	flg=2;
@@ -7275,7 +7354,7 @@ int hasPM1factors(int **Gamma, int **Vpat, int n, int m, int allgood, int q){
 }
 
 
-int analysereacs(const char fname[], int q, bool htmlswitch){
+int analysereacs(const char fname[], int q, bool htmlswitch, bool statswitch){
 
   int k,**imat1, **imat2, **imat3, **imat4, **imat1a, **stoichl, **stoichr;
   char *str;
@@ -7311,6 +7390,11 @@ int analysereacs(const char fname[], int q, bool htmlswitch){
   char notrWSD[500];
   char notrcmpt[500];
   char notrcmpt1[500];
+  char feinbergdef0[200];
+  char feinbergdef1[200];
+  char ALSstr[200];
+  char PMglob[200];
+  char PMloc[200];
   int totsiphons=1,totminsiphons=0,**allsiphons=NULL,**allminsiphons=NULL;
   bool persistflag=1,def1flg=0;
   int bdclass, notallbd;
@@ -7322,8 +7406,8 @@ int analysereacs(const char fname[], int q, bool htmlswitch){
   //return 0;
 
 
-  //Version 1=2013, .11=June, .1 = revision
-  fprintf(stdout, "Analysereacs version 1.11.1. (Please note that this is work in progress.)\n\n");
+  //Version x=year 2012+x, .y=month number, .z = revision number
+  fprintf(stdout, "Analysereacs version 1.11.2. (Please note that this is work in progress.)\n\n");
 
   str=readfileintostr(fname);
   if(isonlyspace(str)){
@@ -7332,9 +7416,17 @@ int analysereacs(const char fname[], int q, bool htmlswitch){
     return -1;
   }
 
+
+
+
   if(htmlswitch){
-    strcpy(mpnestr, "<a title=\"MPNE\" href=\"http://reaction-networks.net/wiki/CoNtRol#MPNE\">MPNE</a>");
-    strcpy(IC1ppstr, "General kinetics: no stoichiometry class includes more than one equilibrium. The system satisfies condition <a title=\"IC1++\" href=\"http://reaction-networks.net/wiki/CoNtRol#Injectivity_condition_1.2B.2B_.28IC1.2B.2B.29\">IC1++</a>");
+    strcpy(feinbergdef0, "Theorem 6.1.1 in Feinberg (<a href=\"http://www.sciencedirect.com/science/article/pii/0009250987800994\">Chem. Eng. Sci. 42(10), 1987</a>)");
+    strcpy(feinbergdef1, "Theorem 6.2.1 in Feinberg (<a href=\"http://www.sciencedirect.com/science/article/pii/0009250987800994\">Chem. Eng. Sci. 42(10), 1987</a>");
+  strcpy(ALSstr, "Theorem 2 in Angeli, De Leenheer and Sontag (<a href=\"http://link.springer.com/article/10.1007/s00285-009-0309-0\">J. Math. Biol. 61(4), 2010</a>)");
+  strcpy(PMglob, "Theorem 2.2 in Donnell and Banaji (<a href=\"http://epubs.siam.org/doi/abs/10.1137/120898486\">SIADS, 12(2), 2013</a>)");
+  strcpy(PMloc, "Theorem 2.1 in Donnell and Banaji (<a href=\"http://epubs.siam.org/doi/abs/10.1137/120898486\">SIADS, 12(2), 2013</a>)");
+  strcpy(mpnestr, "<a title=\"MPNE\" href=\"http://reaction-networks.net/wiki/CoNtRol#MPNE\">MPNE</a>");
+  strcpy(IC1ppstr, "General kinetics: no stoichiometry class includes more than one equilibrium. The system satisfies condition <a title=\"IC1++\" href=\"http://reaction-networks.net/wiki/CoNtRol#Injectivity_condition_1.2B.2B_.28IC1.2B.2B.29\">IC1++</a>");
     strcpy(IC1pstr, "General kinetics: no nontrivial stoichiometry class includes more than one equilibrium. The system satisfies condition <a title=\"IC1+\" href=\"http://reaction-networks.net/wiki/CoNtRol#Injectivity_condition_1.2B_.28IC1.2B.29\">IC1+</a>");
     strcpy(IC1str, "General kinetics: no stoichiometry class includes more than one positive equilibrium. The system satisfies condition <a title=\"IC1\" href=\"http://reaction-networks.net/wiki/CoNtRol#Injectivity_condition_1_.28IC1.29\">IC1</a>");
     strcpy(IC3str, "General kinetics: the fully open system is injective. The system satisfies condition <a title=\"IC3\" href=\"http://reaction-networks.net/wiki/CoNtRol#Injectivity_condition_3_.28IC3.29\">IC3</a>");
@@ -7353,10 +7445,16 @@ int analysereacs(const char fname[], int q, bool htmlswitch){
     strcpy(notWSD, "Mass action kinetics: there exists a choice of rate constants and inflows and outflows such that the fully open system has multiple positive equilibria");
     strcpy(notrcmpt, "There exists a choice of power-law kinetics such that the system fails condition <a title=\"IC2\" href=\"http://reaction-networks.net/wiki/CoNtRol#Injectivity_condition_2_.28IC2.29\">IC2</a>");
     strcpy(notrcmpt1, "There exists a choice of power-law kinetics such that the system has multiple positive equilibria on some stoichiometry class");
-  }
-  else{
-    strcpy(mpnestr, "MPNE");
-    strcpy(IC1ppstr, "General kinetics: no stoichiometry class includes more than one equilibrium. The system satisfies condition IC1++");
+}
+ else{
+   strcpy(feinbergdef0, "Theorem 6.1.1 in Feinberg (Chem. Eng. Sci. 42(10), 1987)");
+   strcpy(feinbergdef1, "Theorem 6.2.1 in Feinberg (Chem. Eng. Sci. 42(10), 1987)");
+   strcpy(ALSstr, "Theorem 2 in Angeli, De Leenheer and Sontag (J. Math. Biol. 61(4), 2010)");
+   strcpy(PMglob, "Theorem 2.2 in Donnell and Banaji (SIADS, 12(2), 2013)");
+   strcpy(PMloc, "Theorem 2.1 in Donnell and Banaji (SIADS, 12(2), 2013)");
+
+   strcpy(mpnestr, "MPNE");
+   strcpy(IC1ppstr, "General kinetics: no stoichiometry class includes more than one equilibrium. The system satisfies condition IC1++");
     strcpy(IC1pstr, "General kinetics: no nontrivial stoichiometry class includes more than one equilibrium. The system satisfies condition IC1+");
     strcpy(IC1str, "General kinetics: no stoichiometry class includes more than one positive equilibrium. The system satisfies condition IC1");
     strcpy(IC3str, "General kinetics: the fully open system is injective. The system satisfies condition IC3");
@@ -7433,34 +7531,34 @@ int analysereacs(const char fname[], int q, bool htmlswitch){
     fprintf(stderr, "\n_________________________________\n\n");
 
     // Is the system weakly reversible?
-    weakr=weak_rev(imat3, Srank, stoichl, stoichr, nlen, cols3, &numcomp, &numlink, haszerocomplex, &zeronotterm, &zeroinitial, &def1flg, &deficiency, chems, q);
+    weakr=weak_rev(imat3, Srank, stoichl, stoichr, nlen, cols3, &numcomp, &numlink, haszerocomplex, &zeronotterm, &zeroinitial, &def1flg, &deficiency, chems, q, statswitch);
     if(deficiency==0){
       if(weakr){
-	fprintf(stdout, "This is a weakly reversible deficiency zero network. According to Feinberg (Chem. Eng. Sci. 42(10), 1987), with mass-action kinetics: each nontrivial stoichiometry class admits exactly one positive equillibrium, and this equilibrium is locally asymptotically stable relative to its stoichiometry class. There are no positive, nontrivial periodic orbits.\n\n");
+	fprintf(stdout, "This is a weakly reversible deficiency zero network. According to %s, with mass-action kinetics: each nontrivial stoichiometry class admits exactly one positive equilibrium, and this equilibrium is locally asymptotically stable relative to its stoichiometry class. There are no positive, nontrivial periodic orbits.\n\n", feinbergdef0);
 	strcat(notrWSD, ". By deficiency theory however, with mass action kinetics, the system has precisely one positive equilibrium on each nontrivial stoichiometry class");
       }
       else if(zeronotterm){
 	SSPO=0;//no steady states of POs
-	fprintf(stdout, "This is a deficiency zero network and the zero complex does not lie in a terminal strong linkage class. According to Feinberg (Chem. Eng. Sci. 42(10), 1987), for general kinetics there are no equilibria at all and no nontrivial periodic orbits, including on the boundary.\n\n");
+	fprintf(stdout, "This is a deficiency zero network and the zero complex does not lie in a terminal strong linkage class. According to %s, for general kinetics there are no equilibria at all and no nontrivial periodic orbits, including on the boundary.\n\n", feinbergdef0);
 	strcat(notrcmpt, ". By deficiency theory however, there are no equilibria at all and no nontrivial periodic orbits, including on the boundary (for general kinetics)");
 	strcat(notrWSD, ". By deficiency theory however, there are no equilibria at all and no nontrivial periodic orbits, including on the boundary (for general kinetics)");
       }
       //https://reaction-networks.net/wiki/Reaction_graph#Deficiency
       else{
 	posSSPO=0;// no positive steady states or POs
-	fprintf(stdout, "The network has deficiency zero, but is not weakly reversible. According to Feinberg (Chem. Eng. Sci. 42(10), 1987), for general kinetics there are no positive equilibria or positive nontrivial periodic orbits.\n\n");
+	fprintf(stdout, "The network has deficiency zero, but is not weakly reversible. According to %s, for general kinetics there are no positive equilibria or positive nontrivial periodic orbits.\n\n", feinbergdef0);
 	strcat(notrcmpt, ". By deficiency theory however, there are no positive equilibria at all (for general kinetics)");
 	strcat(notrWSD, ". By deficiency theory however, there are no positive equilibria at all (for general kinetics)");
       }
     }
     else if(def1flg){
       if(weakr){
-	fprintf(stdout, "This network is weakly reversible and satisfies the conditions of the deficiency one theorem. According to Feinberg (Chem. Eng. Sci. 42(10), 1987), for mass action kinetics, the system has precisely one positive equilibrium on each nontrivial stoichiometry class.\n\n");
+	fprintf(stdout, "This network is weakly reversible and satisfies the conditions of the deficiency one theorem. According to %s, for mass action kinetics, the system has precisely one positive equilibrium on each nontrivial stoichiometry class.\n\n", feinbergdef1);
 	strcat(notrWSD, ". By deficiency theory however, with mass action kinetics, the system has precisely one positive equilibrium on each nontrivial stoichiometry class");
 
       }
       else{
-	fprintf(stdout, "This network satisfies the conditions of the deficiency one theorem (but is not weakly reversible). According to Feinberg (Chem. Eng. Sci. 42(10), 1987), for mass action kinetics, the system has no more than one positive equilibrium on each nontrivial stoichiometry class.\n\n");
+	fprintf(stdout, "This network satisfies the conditions of the deficiency one theorem (but is not weakly reversible). According to %s, for mass action kinetics, the system has no more than one positive equilibrium on each nontrivial stoichiometry class.\n\n", feinbergdef1);
 	strcat(notrWSD, ". By deficiency theory however, with mass action kinetics, the system has no more than one positive equilibrium on each nontrivial stoichiometry class");
       }
     }
@@ -7486,18 +7584,25 @@ int analysereacs(const char fname[], int q, bool htmlswitch){
 
     // check if the stoichiometric matrix has positive vectors in its left-kernel
     bdclass=hasposkervec(imat1, nlen, mlen, 1);//strict
+    if(bdclass==-1 && hasposimvec(imat1, nlen, mlen))
+      bdclass=0;//definitely unbounded
+
     if(!bdclass)
       fprintf(stdout, "Stoichiometry classes are unbounded.\n\n");
-    else if(bdclass==-1)//probably unbounded
+    else if(bdclass==-1)//probably unbounded (shouldn't occur)
       fprintf(stdout, "Stoichiometry classes may be unbounded.\n\n");
     else
       fprintf(stdout, "Stoichiometry classes are bounded (each stoichiometry class contains at least one equilibrium).\n\n");
 
     // test if the irreversible stoichiometric matrix has no positive vectors in its kernel
     notallbd=hasposrkervec(imat3, nlen, cols3, 1);//strict
+    if(notallbd==-1 && hasposlimvec(imat3, nlen, cols3))
+      notallbd=0;
 
     //count the siphons
     totsiphons=checksiphons(imat3,imat4,nlen,cols3,&allsiphons,&totminsiphons,&allminsiphons);
+    if(statswitch && !totsiphons)
+      fprintf(stdout, "SIPH0\n");
     if(SSPO && posSSPO){ //deficiency zero tests didn't already answer these questions
       if(!notallbd && !totsiphons){
 	if(!zeroinitial)//zero is an equilibrium
@@ -7505,7 +7610,7 @@ int analysereacs(const char fname[], int q, bool htmlswitch){
 	else
 	  fprintf(stdout, "The system has no equilibria.\n\n");
       }
-      else if(notallbd==-1 && !totsiphons){
+      else if(notallbd==-1 && !totsiphons){//shouldn't execute
 	if(!zeroinitial)//zero is an equilibrium
 	  fprintf(stdout, "The only equilibrium of the system appears to be the trivial one.\n\n");
 	else
@@ -7513,7 +7618,7 @@ int analysereacs(const char fname[], int q, bool htmlswitch){
       }
       else if(!notallbd)
 	fprintf(stdout, "All equilibria are boundary equilibria.\n\n");
-      else if(notallbd==-1)
+      else if(notallbd==-1)//shouldn't execute
 	fprintf(stdout, "All equilibria appear to be boundary equilibria.\n\n");
       else if(!totsiphons)
 	fprintf(stdout, "This system has no siphons (the boundary includes no nontrivial equilbria).\n\n");
@@ -7531,22 +7636,35 @@ int analysereacs(const char fname[], int q, bool htmlswitch){
     }
 
     if((ALS_flg=ALS_JMB_2009(imat1,imat2,nlen,mlen,allgood,bdclass,persistflag))){
-      if(ALS_flg==1)
-	fprintf(stdout, "According to Angeli, De Leenheer and Sontag (J. Math Biol. 61(4), 2010) the system (with general kinetics) is globally convergent in the following sense: all positive initial conditions converge to an equilibrium which is the unique equilibrium on its stoichiometry class.\n\n");
+      if(ALS_flg==1){
+	if(statswitch)
+	  fprintf(stdout, "ALS1 (global convergence)\n");
+	fprintf(stdout, "According to %s, the system (with general kinetics) is globally convergent in the following sense: all positive initial conditions converge to an equilibrium which is the unique equilibrium on its stoichiometry class.\n\n", ALSstr);
+      }
       else if(ALS_flg==2){
-	fprintf(stdout, "According to Angeli, De Leenheer and Sontag (J. Math Biol. 61(4), 2010) the system (with general kinetics) is generically quasiconvergent: almost all positive initial conditions converge to the set of equilibria (the measure of the set of possibly non-convergent initial conditions is zero).\n\n");
+	if(statswitch)
+	  fprintf(stdout, "ALS2 (generic QC)\n");
+	fprintf(stdout, "According to %s, the system (with general kinetics) is generically quasiconvergent: almost all positive initial conditions converge to the set of equilibria (the measure of the set of possibly non-convergent initial conditions is zero).\n\n", ALSstr);
       }
     }
 
     if((PM1_flg=hasPM1factors(imat1, imat2, nlen, mlen, allgood, 1))){
       if(PM1_flg==1){
-      if(!totsiphons)
-	fprintf(stdout, "According to Donnell and Banaji (SIADS, 2013) the system (with general kinetics) is globally convergent in the following sense: all initial conditions converge to an equilibrium which is the unique equilibrium on its stoichiometry class, and is (for stoichiometry classes other than {0}) positive.\n\n");
-      else if(persistflag)
-	fprintf(stdout, "According to Donnell and Banaji (SIADS, 2013) the system (with general kinetics) is globally convergent in the following sense: all initial conditions on any nontrivial stoichiometry class converge to an equilibrium which is the unique equilibrium on its stoichiometry class, and is (for stoichiometry classes other than {0}) positive.\n\n");
+	if(!totsiphons){
+	  if(statswitch)
+	    fprintf(stdout, "PMflag1 (global no siph)\n");
+	  fprintf(stdout, "According to %s, the system (with general kinetics) is globally convergent in the following sense: all initial conditions converge to an equilibrium which is the unique equilibrium on its stoichiometry class, and is (for stoichiometry classes other than {0}) positive.\n\n", PMglob);
+	}
+	else if(persistflag){
+	  if(statswitch)
+	    fprintf(stdout, "PMflag2 (global with siph)\n");
+	  fprintf(stdout, "According to %s, the system (with general kinetics) is globally convergent in the following sense: all initial conditions on any nontrivial stoichiometry class converge to an equilibrium which is the unique equilibrium on its stoichiometry class, and is (for stoichiometry classes other than {0}) positive.\n\n", PMglob);
+	}
       }
       else if (PM1_flg==2){
-	fprintf(stdout, "According to Donnell and Banaji (SIADS, 2013) the system (with general kinetics) is locally convergent in the following sense: every positive initial condition is locally asymptotically stable.\n\n");
+	if(statswitch)
+	  fprintf(stdout, "PMflag3 (local)\n");
+	fprintf(stdout, "According to %s, the system (with general kinetics) is locally convergent in the following sense: every positive initial condition is locally asymptotically stable.\n\n", PMloc);
       }
     }
 
@@ -7648,7 +7766,8 @@ int analysereacs(const char fname[], int q, bool htmlswitch){
 
       compatflag=arecompat(imat1, imat2, nlen, mlen, q);
       if(compatflag==3){//matrix and sign-pattern are compatible and r-strongly compatible
-	//fprintf(stdout, "NR***\nGKIC1\nGKIC3\nMAIC2\nMAIC3\n");//for batch checking
+	if(statswitch)
+	  fprintf(stdout, "NR***\nGKIC1\nGKIC3\nMAIC2\nMAIC3\n");//for batch checking
 	if(totsiphons==0)
 	  fprintf(stdout, "%s.\n", IC1pp3str);
 	else if(persistflag)
@@ -7657,7 +7776,8 @@ int analysereacs(const char fname[], int q, bool htmlswitch){
 	  fprintf(stdout, "%s.\n", IC13str);
       }
       else if(compatflag==2){ //matrix and sign-pattern are compatible but not r-strongly compatible
-	//fprintf(stdout, "NR***\nGKIC3\nMAIC3\n");//for batch checking
+	if(statswitch)
+	  fprintf(stdout, "NR***\nGKIC3\nMAIC3\n");//for batch checking
 	if(SSPO && posSSPO && notallbd)//possibly interior equilibria
 	  tmpstr=notrcmpt1;
 	else
@@ -7665,7 +7785,8 @@ int analysereacs(const char fname[], int q, bool htmlswitch){
 
 	MAcompatflag=mats_compat(imat3, imat4, nlen, cols3, q);
 	if(MAcompatflag==3 || MAcompatflag==1 || MAcompatflag==-1){// (stoich and exp) matrices are r-strongly compatible or r-strongly negatively compatible
-	  //fprintf(stdout, "MAIC2\n");//for batch checking
+	  if(statswitch)
+	    fprintf(stdout, "MAIC2\n");//for batch checking
 	  if(totsiphons==0)
 	    fprintf(stdout, "%s.\n%s.\n%s.\n", IC3str, tmpstr, MAIC2pp);
 	  else if(persistflag)
@@ -7681,10 +7802,12 @@ int analysereacs(const char fname[], int q, bool htmlswitch){
 	}
       }
       else if(compatflag==1 || compatflag==-1){//  matrix and sign-pattern are r-strongly compatible or r-strongly negatively compatible but are not compatible
-	//fprintf(stdout, "NR***\nGKIC1\nMAIC2\n");//for batch checking
+	if(statswitch)
+	  fprintf(stdout, "NR***\nGKIC1\nMAIC2\n");//for batch checking
 	MAcompatflag=mats_compat(imat3, imat4, nlen, cols3, q);
 	if(MAcompatflag==3 || MAcompatflag==2){// (stoich and exp) matrices are compatible
-	  //fprintf(stdout, "MAIC3\n");//for batch checking
+	  if(statswitch)
+	    fprintf(stdout, "MAIC3\n");//for batch checking
 	  if(totsiphons==0)
 	    fprintf(stdout, "%s.\n%s.\n%s.\n", IC1ppstr, notSSD, MAIC3);
 	  else if(persistflag)
@@ -7709,7 +7832,8 @@ int analysereacs(const char fname[], int q, bool htmlswitch){
 
 	MAcompatflag=mats_compat(imat3, imat4, nlen, cols3, q);
 	if(MAcompatflag==3){// (stoich and exp) matrices are compatible and r-strongly compatible
-	  //fprintf(stdout, "NR***\nMAIC2\nMAIC3\n");//for batch checking
+	  if(statswitch)
+	    fprintf(stdout, "NR***\nMAIC2\nMAIC3\n");//for batch checking
 	  if(totsiphons==0)
 	    fprintf(stdout, "%s.\n%s.\n%s.\n", notSSD, tmpstr, MAIC2ppIC3);
 	  else if(persistflag)
@@ -7718,11 +7842,13 @@ int analysereacs(const char fname[], int q, bool htmlswitch){
 	    fprintf(stdout, "%s.\n%s.\n%s.\n", notSSD, tmpstr, MAIC2IC3);
 	}
 	else if(MAcompatflag==2){ //(stoich and exp) matrices are compatible but not r-strongly compatible or r-strongly negatively compatible
-	  //fprintf(stdout, "NR***\nMAIC3\n");//for batch checking
+	  if(statswitch)
+	    fprintf(stdout, "NR***\nMAIC3\n");//for batch checking
 	  fprintf(stdout, "%s.\n%s.\n%s.\n%s.\n", notSSD, tmpstr, MAIC3, notrWSD);
 	}
 	else if(MAcompatflag==1 || MAcompatflag==-1){ //(stoich and exp) matrices are r-strongly compatible or r-strongly negatively compatible, but not compatible
-	  //fprintf(stdout, "NR***\nMAIC2\n");//for batch checking
+	  if(statswitch)
+	    fprintf(stdout, "NR***\nMAIC2\n");//for batch checking
 	  if(totsiphons==0)
 	    fprintf(stdout, "%s.\n%s.\n%s.\n", tmpstr, MAIC2pp, notWSD);
 	  else if(persistflag)
@@ -7731,7 +7857,8 @@ int analysereacs(const char fname[], int q, bool htmlswitch){
 	    fprintf(stdout, "%s.\n%s.\n%s.\n", tmpstr, MAIC2, notWSD);
 	}
 	else{
-	  //fprintf(stdout, "NR***\n");//for batch checking
+	  if(statswitch)
+	    fprintf(stdout, "NR***\n");//for batch checking
 	  //	allminorsigns(imat3, imat4, nlen, cols3, q);
 	  if(SSPO && posSSPO && notallbd)//possibly interior equilibria
 	    fprintf(stdout, "%s.\n%s.\n%s.\n", notrcmpt1, notrWSD, notWSD);

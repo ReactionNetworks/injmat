@@ -86,7 +86,7 @@ int freearraydat(char **array, int lim);
 int addv1(int k, char *s, char ***t);
 int isinarray(char *v[], int numv, char *s);
 int getallreacs(char *str, int ***imat1, int ***imat2, int ***imat3, int ***imat4, int ***stoichl, int ***stoichr, char ***chems, int *n, int *m, int *cols3, int *allrev, int *allgood);
-int analysereacs(const char fname[], int q, bool htmlswitch);
+int analysereacs(const char fname[], int q, bool htmlswitch, bool statswitch);
 int fixedminorcompat(int **imat1, int **imat2, int n, int m, int *vec1, int *vec2, int k);
 int allminorsigns(int **imat1, int **imat2, int n, int m, int q);
 int genMAXMAreacs(char *fname, int **imat1, int **imat2, int n, int m);
