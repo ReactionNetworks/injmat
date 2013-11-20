@@ -6601,7 +6601,7 @@ int isterm(int *SCCj,int *CCj,int **cmpmat,int totcmplx){
 // It could be more efficient to check each
 // CC is an SCC as it is computed. 
 
-bool weak_rev(int **imatir, int Srank, int **stoichl, int **stoichr, int n, int m, int *numcomp, int *numlink, bool haszero, bool *zeronotterm, bool *zeroinitial, bool *def1flg, int *deficiency, char **chems, bool q, bool statswitch){
+bool weak_rev(int **imatir, int Srank, int **stoichl, int **stoichr, int n, int m, int *numcomp, int *numlink, bool haszero, bool *zeronotterm, bool *zeroinitial, bool *def1flg, int *deficiency, char **chems, bool q, bool statswitch, bool htmlswitch){
   //stoichl is the left stoichiometric matrix; stoichr is the right stoichiometric matrix
   int i,j,jj,k,m1,totcmplx=0,zeroint;
   int **stoichlt, **stoichrt; //for transposed matrices
@@ -6803,8 +6803,13 @@ bool weak_rev(int **imatir, int Srank, int **stoichl, int **stoichr, int n, int 
   }
 
   if((*deficiency) && !(*def1flg)){
-    fprintf(stdout, "The network is not deficiency zero and fails the conditions of the deficiency one theorem.\n\n");
+    if(htmlswitch)
+      fprintf(stdout, "The network is not deficiency zero and fails the conditions of the deficiency one theorem (see <a href=\"http://reaction-networks.net/wiki/Deficiency_theory.\" target=\"_blank\">the wiki</a> for more details.)\n\n");
+    else
+      fprintf(stdout, "The network is not deficiency zero and fails the conditions of the deficiency one theorem.\n\n");
   }
+
+  //http://reaction-networks.net/wiki/Deficiency_theory#Deficiency_one_theorem
 
   free_imat(SCC,totSCC);
   free_imat(CC,totCC);
@@ -7390,11 +7395,19 @@ int analysereacs(const char fname[], int q, bool htmlswitch, bool statswitch){
   char notrWSD[500];
   char notrcmpt[500];
   char notrcmpt1[500];
-  char feinbergdef0[200];
-  char feinbergdef1[200];
-  char ALSstr[200];
-  char PMglob[200];
-  char PMloc[200];
+  char feinbergdef0[500];
+  char feinbergdef1[500];
+  char ALSstr[500];
+  char PMglob[500];
+  char PMloc[500];
+  char BanajiPanteastr[200];
+  char deftheor[200];
+  char weakrstr[200];
+  char defstr[200];
+  char siphonstr[200];
+  char structpers[200];
+  char bddclass[200];
+  char unbddclass[200];
   int totsiphons=1,totminsiphons=0,**allsiphons=NULL,**allminsiphons=NULL;
   bool persistflag=1,def1flg=0;
   int bdclass, notallbd;
@@ -7407,7 +7420,7 @@ int analysereacs(const char fname[], int q, bool htmlswitch, bool statswitch){
 
 
   //Version x=year 2012+x, .y=month number, .z = revision number
-  fprintf(stdout, "Analysereacs version 1.11.2. (Please note that this is work in progress.)\n\n");
+  fprintf(stdout, "Analysereacs version 1.11.3. (Please note that this is work in progress.)\n\n");
 
   str=readfileintostr(fname);
   if(isonlyspace(str)){
@@ -7418,13 +7431,20 @@ int analysereacs(const char fname[], int q, bool htmlswitch, bool statswitch){
 
 
 
-
   if(htmlswitch){
-    strcpy(feinbergdef0, "Theorem 6.1.1 in Feinberg (<a href=\"http://www.sciencedirect.com/science/article/pii/0009250987800994\">Chem. Eng. Sci. 42(10), 1987</a>)");
-    strcpy(feinbergdef1, "Theorem 6.2.1 in Feinberg (<a href=\"http://www.sciencedirect.com/science/article/pii/0009250987800994\">Chem. Eng. Sci. 42(10), 1987</a>");
-  strcpy(ALSstr, "Theorem 2 in Angeli, De Leenheer and Sontag (<a href=\"http://link.springer.com/article/10.1007/s00285-009-0309-0\">J. Math. Biol. 61(4), 2010</a>)");
-  strcpy(PMglob, "Theorem 2.2 in Donnell and Banaji (<a href=\"http://epubs.siam.org/doi/abs/10.1137/120898486\">SIADS, 12(2), 2013</a>)");
-  strcpy(PMloc, "Theorem 2.1 in Donnell and Banaji (<a href=\"http://epubs.siam.org/doi/abs/10.1137/120898486\">SIADS, 12(2), 2013</a>)");
+    strcpy(BanajiPanteastr, "<a href=\"http://arxiv.org/abs/1309.6771\" target=\"_blank\">Banaji and Pantea, arxiv:1309.6771</a>");
+    strcpy(bddclass, "<a href=\"http://reaction-networks.net/wiki/CoNtRol#Stoichiometric_subspace_and_stoichiometry_classes\" target=\"_blank\">Stoichiometry classes are bounded</a>");
+    strcpy(unbddclass, "<a href=\"http://reaction-networks.net/wiki/CoNtRol#Stoichiometric_subspace_and_stoichiometry_classes\" target=\"_blank\">Stoichiometry classes are unbounded</a> (the stoichiometric subspace includes a nonnegative vector)");
+    strcpy(structpers, "<a href=\"http://reaction-networks.net/wiki/CoNtRol#Persistence_condition_2_.28PC2.29\" target=\"_blank\">structurally persistent</a>");
+    strcpy(siphonstr, "<a href=\"http://reaction-networks.net/wiki/CoNtRol#Siphon\" target=\"_blank\">siphons</a>");
+    strcpy(defstr, "<a href=\"http://reaction-networks.net/wiki/Deficiency#Deficiency\" target=\"_blank\">deficiency</a>");
+    strcpy(weakrstr, "<a href=\"http://reaction-networks.net/wiki/Weakly_reversible#Weak_reversibility\" target=\"_blank\">weakly reversible</a>");
+    strcpy(deftheor, "<a href=\"http://reaction-networks.net/wiki/Deficiency_theory\" target=\"_blank\">deficiency theory</a>");
+    strcpy(feinbergdef0, "Theorem 6.1.1 in Feinberg (<a href=\"http://www.sciencedirect.com/science/article/pii/0009250987800994\" target=\"_blank\">Chem. Eng. Sci. 42(10), 1987</a>)");
+    strcpy(feinbergdef1, "Theorem 6.2.1 in Feinberg (<a href=\"http://www.sciencedirect.com/science/article/pii/0009250987800994\" target=\"_blank\">Chem. Eng. Sci. 42(10), 1987</a>");
+  strcpy(ALSstr, "Theorem 2 in Angeli, De Leenheer and Sontag (<a href=\"http://link.springer.com/article/10.1007/s00285-009-0309-0\" target=\"_blank\">J. Math. Biol. 61(4), 2010</a>)");
+  strcpy(PMglob, "Theorem 2.2 in Donnell and Banaji (<a href=\"http://epubs.siam.org/doi/abs/10.1137/120898486\" target=\"_blank\">SIADS, 12(2), 2013</a>)");
+  strcpy(PMloc, "Theorem 2.1 in Donnell and Banaji (<a href=\"http://epubs.siam.org/doi/abs/10.1137/120898486\" target=\"_blank\">SIADS, 12(2), 2013</a>)");
   strcpy(mpnestr, "<a title=\"MPNE\" href=\"http://reaction-networks.net/wiki/CoNtRol#MPNE\">MPNE</a>");
   strcpy(IC1ppstr, "General kinetics: no stoichiometry class includes more than one equilibrium. The system satisfies condition <a title=\"IC1++\" href=\"http://reaction-networks.net/wiki/CoNtRol#Injectivity_condition_1.2B.2B_.28IC1.2B.2B.29\">IC1++</a>");
     strcpy(IC1pstr, "General kinetics: no nontrivial stoichiometry class includes more than one equilibrium. The system satisfies condition <a title=\"IC1+\" href=\"http://reaction-networks.net/wiki/CoNtRol#Injectivity_condition_1.2B_.28IC1.2B.29\">IC1+</a>");
@@ -7446,15 +7466,23 @@ int analysereacs(const char fname[], int q, bool htmlswitch, bool statswitch){
     strcpy(notrcmpt, "There exists a choice of power-law kinetics such that the system fails condition <a title=\"IC2\" href=\"http://reaction-networks.net/wiki/CoNtRol#Injectivity_condition_2_.28IC2.29\">IC2</a>");
     strcpy(notrcmpt1, "There exists a choice of power-law kinetics such that the system has multiple positive equilibria on some stoichiometry class");
 }
- else{
-   strcpy(feinbergdef0, "Theorem 6.1.1 in Feinberg (Chem. Eng. Sci. 42(10), 1987)");
-   strcpy(feinbergdef1, "Theorem 6.2.1 in Feinberg (Chem. Eng. Sci. 42(10), 1987)");
-   strcpy(ALSstr, "Theorem 2 in Angeli, De Leenheer and Sontag (J. Math. Biol. 61(4), 2010)");
-   strcpy(PMglob, "Theorem 2.2 in Donnell and Banaji (SIADS, 12(2), 2013)");
-   strcpy(PMloc, "Theorem 2.1 in Donnell and Banaji (SIADS, 12(2), 2013)");
+  else{
+    strcpy(BanajiPanteastr, "Banaji and Pantea, arxiv:1309.6771");
+    strcpy(bddclass, "Stoichiometry classes are bounded");
+    strcpy(unbddclass, "Stoichiometry classes are unbounded (the stoichiometric subspace includes a nonnegative vector)");
+    strcpy(structpers, "structurally persistent");
+    strcpy(siphonstr, "siphons");
+    strcpy(defstr, "deficiency");
+    strcpy(weakrstr, "weakly reversible");
+    strcpy(deftheor, "deficiency theory");
+    strcpy(feinbergdef0, "Theorem 6.1.1 in Feinberg (Chem. Eng. Sci. 42(10), 1987)");
+    strcpy(feinbergdef1, "Theorem 6.2.1 in Feinberg (Chem. Eng. Sci. 42(10), 1987)");
+    strcpy(ALSstr, "Theorem 2 in Angeli, De Leenheer and Sontag (J. Math. Biol. 61(4), 2010)");
+    strcpy(PMglob, "Theorem 2.2 in Donnell and Banaji (SIADS, 12(2), 2013)");
+    strcpy(PMloc, "Theorem 2.1 in Donnell and Banaji (SIADS, 12(2), 2013)");
 
-   strcpy(mpnestr, "MPNE");
-   strcpy(IC1ppstr, "General kinetics: no stoichiometry class includes more than one equilibrium. The system satisfies condition IC1++");
+    strcpy(mpnestr, "MPNE");
+    strcpy(IC1ppstr, "General kinetics: no stoichiometry class includes more than one equilibrium. The system satisfies condition IC1++");
     strcpy(IC1pstr, "General kinetics: no nontrivial stoichiometry class includes more than one equilibrium. The system satisfies condition IC1+");
     strcpy(IC1str, "General kinetics: no stoichiometry class includes more than one positive equilibrium. The system satisfies condition IC1");
     strcpy(IC3str, "General kinetics: the fully open system is injective. The system satisfies condition IC3");
@@ -7531,44 +7559,49 @@ int analysereacs(const char fname[], int q, bool htmlswitch, bool statswitch){
     fprintf(stderr, "\n_________________________________\n\n");
 
     // Is the system weakly reversible?
-    weakr=weak_rev(imat3, Srank, stoichl, stoichr, nlen, cols3, &numcomp, &numlink, haszerocomplex, &zeronotterm, &zeroinitial, &def1flg, &deficiency, chems, q, statswitch);
+    weakr=weak_rev(imat3, Srank, stoichl, stoichr, nlen, cols3, &numcomp, &numlink, haszerocomplex, &zeronotterm, &zeroinitial, &def1flg, &deficiency, chems, q, statswitch, htmlswitch);
     if(deficiency==0){
       if(weakr){
-	fprintf(stdout, "This is a weakly reversible deficiency zero network. According to %s, with mass-action kinetics: each nontrivial stoichiometry class admits exactly one positive equilibrium, and this equilibrium is locally asymptotically stable relative to its stoichiometry class. There are no positive, nontrivial periodic orbits.\n\n", feinbergdef0);
-	strcat(notrWSD, ". By deficiency theory however, with mass action kinetics, the system has precisely one positive equilibrium on each nontrivial stoichiometry class");
+	fprintf(stdout, "This is a %s %s zero network. According to %s, with mass-action kinetics: each nontrivial stoichiometry class admits exactly one positive equilibrium, and this equilibrium is locally asymptotically stable relative to its stoichiometry class. There are no positive, nontrivial periodic orbits.\n\n", weakrstr, defstr, feinbergdef0);
+	strcat(notrWSD, ". By ");strcat(notrWSD, deftheor);
+	strcat(notrWSD, " however, with mass action kinetics, the system has precisely one positive equilibrium on each nontrivial stoichiometry class");
       }
       else if(zeronotterm){
 	SSPO=0;//no steady states of POs
-	fprintf(stdout, "This is a deficiency zero network and the zero complex does not lie in a terminal strong linkage class. According to %s, for general kinetics there are no equilibria at all and no nontrivial periodic orbits, including on the boundary.\n\n", feinbergdef0);
+	fprintf(stdout, "This is a %s zero network and the zero complex does not lie in a terminal strong linkage class. According to %s, for general kinetics there are no equilibria at all and no nontrivial periodic orbits, including on the boundary.\n\n", defstr, feinbergdef0);
 	strcat(notrcmpt, ". By deficiency theory however, there are no equilibria at all and no nontrivial periodic orbits, including on the boundary (for general kinetics)");
 	strcat(notrWSD, ". By deficiency theory however, there are no equilibria at all and no nontrivial periodic orbits, including on the boundary (for general kinetics)");
       }
       //https://reaction-networks.net/wiki/Reaction_graph#Deficiency
       else{
 	posSSPO=0;// no positive steady states or POs
-	fprintf(stdout, "The network has deficiency zero, but is not weakly reversible. According to %s, for general kinetics there are no positive equilibria or positive nontrivial periodic orbits.\n\n", feinbergdef0);
-	strcat(notrcmpt, ". By deficiency theory however, there are no positive equilibria at all (for general kinetics)");
-	strcat(notrWSD, ". By deficiency theory however, there are no positive equilibria at all (for general kinetics)");
+	fprintf(stdout, "The network has %s zero, but is not %s. According to %s, for general kinetics there are no positive equilibria or positive nontrivial periodic orbits.\n\n", defstr, weakrstr, feinbergdef0);
+	strcat(notrcmpt, ". By deficiency theory however, there are no positive equilibria at all (for general kinetics) - see ");
+	strcat(notrcmpt, feinbergdef0);
+	strcat(notrWSD, ". By deficiency theory however, there are no positive equilibria at all (for general kinetics) - see ");
+	strcat(notrWSD, feinbergdef0);
       }
     }
     else if(def1flg){
       if(weakr){
-	fprintf(stdout, "This network is weakly reversible and satisfies the conditions of the deficiency one theorem. According to %s, for mass action kinetics, the system has precisely one positive equilibrium on each nontrivial stoichiometry class.\n\n", feinbergdef1);
-	strcat(notrWSD, ". By deficiency theory however, with mass action kinetics, the system has precisely one positive equilibrium on each nontrivial stoichiometry class");
+	fprintf(stdout, "This network is %s and satisfies the conditions of the deficiency one theorem. According to %s, for mass action kinetics, the system has precisely one positive equilibrium on each nontrivial stoichiometry class.\n\n", weakrstr, feinbergdef1);
+	strcat(notrWSD, ". By ");strcat(notrWSD, deftheor);
+	strcat(notrWSD, " however, with mass action kinetics, the system has precisely one positive equilibrium on each nontrivial stoichiometry class");
 
       }
       else{
-	fprintf(stdout, "This network satisfies the conditions of the deficiency one theorem (but is not weakly reversible). According to %s, for mass action kinetics, the system has no more than one positive equilibrium on each nontrivial stoichiometry class.\n\n", feinbergdef1);
-	strcat(notrWSD, ". By deficiency theory however, with mass action kinetics, the system has no more than one positive equilibrium on each nontrivial stoichiometry class");
+	fprintf(stdout, "This network satisfies the conditions of the deficiency one theorem (but is not %s). According to %s, for mass action kinetics, the system has no more than one positive equilibrium on each nontrivial stoichiometry class.\n\n", weakrstr, feinbergdef1);
+	strcat(notrWSD, ". By deficiency theory however, with mass action kinetics, the system has no more than one positive equilibrium on each nontrivial stoichiometry class - see ");
+	strcat(notrWSD, feinbergdef1);
       }
     }
     else{
       if(weakr)
-	fprintf(stdout, "The network is weakly reversible.\n\n");
+	fprintf(stdout, "The network is %s.\n\n", weakrstr);
       else
-	fprintf(stdout, "The network is not weakly reversible.\n\n");
+	fprintf(stdout, "The network is not %s.\n\n", weakrstr);
 
-      fprintf(stdout, "The network has deficiency %d.\n\n", deficiency);
+      fprintf(stdout, "The network has %s %d.\n\n", defstr, deficiency);
     }
 
     if((simp_flg=simple_CRN(imat1,nlen,mlen))){
@@ -7588,11 +7621,11 @@ int analysereacs(const char fname[], int q, bool htmlswitch, bool statswitch){
       bdclass=0;//definitely unbounded
 
     if(!bdclass)
-      fprintf(stdout, "Stoichiometry classes are unbounded.\n\n");
+      fprintf(stdout, "%s.\n\n",unbddclass);
     else if(bdclass==-1)//probably unbounded (shouldn't occur)
       fprintf(stdout, "Stoichiometry classes may be unbounded.\n\n");
     else
-      fprintf(stdout, "Stoichiometry classes are bounded (each stoichiometry class contains at least one equilibrium).\n\n");
+      fprintf(stdout, "%s (each stoichiometry class contains at least one equilibrium).\n\n", bddclass);
 
     // test if the irreversible stoichiometric matrix has no positive vectors in its kernel
     notallbd=hasposrkervec(imat3, nlen, cols3, 1);//strict
@@ -7606,33 +7639,33 @@ int analysereacs(const char fname[], int q, bool htmlswitch, bool statswitch){
     if(SSPO && posSSPO){ //deficiency zero tests didn't already answer these questions
       if(!notallbd && !totsiphons){
 	if(!zeroinitial)//zero is an equilibrium
-	  fprintf(stdout, "The only equilibrium of the system is a trivial one.\n\n");
+	  fprintf(stdout, "The only equilibrium of the system is a trivial one (the system has no siphons, and no positive equilibria).\n\n");
 	else
-	  fprintf(stdout, "The system has no equilibria.\n\n");
+	  fprintf(stdout, "The system has no equilibria (the system has no siphons, no positive equilibria, and zero is not an equilbrium).\n\n");
       }
-      else if(notallbd==-1 && !totsiphons){//shouldn't execute
-	if(!zeroinitial)//zero is an equilibrium
-	  fprintf(stdout, "The only equilibrium of the system appears to be the trivial one.\n\n");
-	else
-	  fprintf(stdout, "The system appears to have no equilibria.\n\n");
-      }
+      /* else if(notallbd==-1 && !totsiphons){//shouldn't execute */
+      /* 	if(!zeroinitial)//zero is an equilibrium */
+      /* 	  fprintf(stdout, "The only equilibrium of the system appears to be the trivial one.\n\n"); */
+      /* 	else */
+      /* 	  fprintf(stdout, "The system appears to have no equilibria.\n\n"); */
+      /* } */
       else if(!notallbd)
-	fprintf(stdout, "All equilibria are boundary equilibria.\n\n");
-      else if(notallbd==-1)//shouldn't execute
-	fprintf(stdout, "All equilibria appear to be boundary equilibria.\n\n");
+	fprintf(stdout, "The system has no positive equilibria.\n\n");
+      /* else if(notallbd==-1)//shouldn't execute */
+      /* 	fprintf(stdout, "All equilibria appear to be boundary equilibria.\n\n"); */
       else if(!totsiphons)
-	fprintf(stdout, "This system has no siphons (the boundary includes no nontrivial equilbria).\n\n");
+	fprintf(stdout, "This system has no %s (the boundary includes no nontrivial equilbria).\n\n", siphonstr);
     }
 
     if(totsiphons){
-	fprintf(stderr, "Siphons of the system:\n");
+      fprintf(stderr, "%s of the system:\n", siphonstr);
 	printsiphons(allsiphons, totsiphons, chems);
-      fprintf(stderr, "Minimal siphons of the system:\n");
+	fprintf(stderr, "Minimal %s of the system:\n", siphonstr);
       printsiphons(allminsiphons, totminsiphons, chems);
 
       persistflag=structpersist(imat3, nlen, cols3, allminsiphons, totminsiphons);
       if(persistflag)
-	fprintf(stdout, "The system has siphons, but is structurally persistent: no nontrivial stoichiometry class includes boundary equilibria.\n\n");
+	fprintf(stdout, "The system has %s, but is %s: no nontrivial stoichiometry class includes boundary equilibria.\n\n", siphonstr, structpers);
     }
 
     if((ALS_flg=ALS_JMB_2009(imat1,imat2,nlen,mlen,allgood,bdclass,persistflag))){
@@ -7668,6 +7701,8 @@ int analysereacs(const char fname[], int q, bool htmlswitch, bool statswitch){
       }
     }
 
+
+    fprintf(stdout, "Claims based on theory in %s:\n\n", BanajiPanteastr);
     //free siphons
     for(k=0;k<totsiphons;k++)
       free ((char *)(allsiphons[k]));
