@@ -7406,8 +7406,8 @@ int analysereacs(const char fname[], int q, bool htmlswitch, bool statswitch){
   char defstr[200];
   char siphonstr[200];
   char structpers[200];
-  char bddclass[200];
-  char unbddclass[200];
+  char bddclass[300];
+  char unbddclass[300];
   int totsiphons=1,totminsiphons=0,**allsiphons=NULL,**allminsiphons=NULL;
   bool persistflag=1,def1flg=0;
   int bdclass, notallbd;
