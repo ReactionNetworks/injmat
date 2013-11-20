@@ -7789,7 +7789,7 @@ int analysereacs(const char fname[], int q, bool htmlswitch, bool statswitch){
       }
       free_imatrix(imat1a, 0, nlen-1, 0, mlena-1);
       if(csdflag==0 && ssdflag==0 && wsdflag==0)
-	fprintf(stdout, "%s.\n%s.\n%s.\n", notrWSD,notWSD,notrcmpt1);
+	fprintf(stdout, "%s.\n%s.\n", notrWSD,notWSD);
     }//finished with the simply reversible case
 
     if(!allgood || (!allrev && csdflag==0 && ssdflag==0 && wsdflag==0)){
