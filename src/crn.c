@@ -7420,7 +7420,7 @@ int analysereacs(const char fname[], int q, bool htmlswitch, bool statswitch){
 
 
   //Version x=year 2012+x, .y=month number, .z = revision number
-  fprintf(stdout, "Analysereacs version 1.11.3. (Please note that this is work in progress.)\n\n");
+  fprintf(stdout, "Analysereacs version 1.12.1. (Please note that this is work in progress.)\n\n");
 
   str=readfileintostr(fname);
   if(isonlyspace(str)){
@@ -7462,7 +7462,7 @@ int analysereacs(const char fname[], int q, bool htmlswitch, bool statswitch){
     strcpy(MAIC2ppIC3, "Mass action kinetics: the system has no nonzero boundary equilibria, no stoichiometry class includes more than one equilibrium, and the fully open system is injective. The system satisfies conditions <a title=\"IC2++\" href=\"http://reaction-networks.net/wiki/CoNtRol#Injectivity_condition_2.2B.2B_.28IC2.2B.2B.29\">IC2++</a> and <a title=\"IC3\" href=\"http://reaction-networks.net/wiki/CoNtRol#Injectivity_condition_3_.28IC3.29\">IC3</a>");
     strcpy(notSSD, "There exists a choice of power-law kinetics and inflows and outflows such that the fully open system has multiple positive equilibria");
     strcpy(notrWSD, "Mass action kinetics: the system fails condition <a title=\"IC2\" href=\"http://reaction-networks.net/wiki/CoNtRol#Injectivity_condition_2_.28IC2.29\">IC2</a> for some choice of rate constants");
-    strcpy(notWSD, "Mass action kinetics: there exists a choice of rate constants and inflows and outflows such that the fully open system has multiple positive equilibria");
+    strcpy(notWSD, "Mass action kinetics: there exists a choice of rate constants and inflows and outflows such that the system fails condition <a title=\"IC3\" href=\"http://reaction-networks.net/wiki/CoNtRol#Injectivity_condition_3_.28IC3.29\">IC3</a> (the fully open system is noninjective)");
     strcpy(notrcmpt, "There exists a choice of power-law kinetics such that the system fails condition <a title=\"IC2\" href=\"http://reaction-networks.net/wiki/CoNtRol#Injectivity_condition_2_.28IC2.29\">IC2</a>");
     strcpy(notrcmpt1, "There exists a choice of power-law kinetics such that the system has multiple positive equilibria on some stoichiometry class");
 }
@@ -7498,7 +7498,7 @@ int analysereacs(const char fname[], int q, bool htmlswitch, bool statswitch){
    strcpy(MAIC2ppIC3, "Mass action kinetics: the system has no nonzero boundary equilibria, no stoichiometry class includes more than one equilibrium, and the fully open system is injective. The system satisfies conditions IC2++ and IC3");
    strcpy(notSSD, "There exists a choice of power-law kinetics and inflows and outflows such that the fully open system has multiple positive equilibria");
     strcpy(notrWSD, "Mass action kinetics: the system fails condition IC2 for some choice of rate constants");
-    strcpy(notWSD, "Mass action kinetics: there exists a choice of rate constants and inflows and outflows such that the fully open system has multiple positive equilibria");
+    strcpy(notWSD, "Mass action kinetics: there exists a choice of rate constants and inflows and outflows such that the system fails condition IC3 (the fully open system is noninjective)");
     strcpy(notrcmpt, "There exists a choice of power-law kinetics such that the system fails condition IC2");
     strcpy(notrcmpt1, "There exists a choice of power-law kinetics such that the system has multiple positive equilibria on some stoichiometry class");
 
