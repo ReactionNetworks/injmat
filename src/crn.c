@@ -7407,6 +7407,7 @@ int analysereacs(const char fname[], int q, bool htmlswitch, bool statswitch){
   char notrcmpt[500];
   char notrcmpt1[500];
   char feinbergdef0[500];
+  char panteadef0[500];
   char feinbergdef1[500];
   char ALSstr[500];
   char PMglob[500];
@@ -7431,7 +7432,7 @@ int analysereacs(const char fname[], int q, bool htmlswitch, bool statswitch){
 
 
   //Version x=year 2012+x, .y=month number, .z = revision number
-  fprintf(stdout, "Analysereacs version 1.12.2. (Please note that this is work in progress.)\n\n");
+  fprintf(stdout, "Analysereacs version 1.12.3. (Please note that this is work in progress.)\n\n");
 
   str=readfileintostr(fname);
   if(isonlyspace(str)){
@@ -7452,6 +7453,7 @@ int analysereacs(const char fname[], int q, bool htmlswitch, bool statswitch){
     strcpy(weakrstr, "<a href=\"http://reaction-networks.net/wiki/Weakly_reversible#Weak_reversibility\" target=\"_blank\">weakly reversible</a>");
     strcpy(deftheor, "<a href=\"http://reaction-networks.net/wiki/Deficiency_theory\" target=\"_blank\">deficiency theory</a>");
     strcpy(feinbergdef0, "Theorem 6.1.1 in Feinberg (<a href=\"http://www.sciencedirect.com/science/article/pii/0009250987800994\" target=\"_blank\">Chem. Eng. Sci. 42(10), 1987</a>)");
+    strcpy(panteadef0, "Theorem 6.3 in Pantea (<a href=\"http://epubs.siam.org/doi/abs/10.1137/110840509\" target=\"_blank\">SIAM J. Math. Anal. 44(3), 2012</a>)");
     strcpy(feinbergdef1, "Theorem 6.2.1 in Feinberg (<a href=\"http://www.sciencedirect.com/science/article/pii/0009250987800994\" target=\"_blank\">Chem. Eng. Sci. 42(10), 1987</a>");
   strcpy(ALSstr, "Theorem 2 in Angeli, De Leenheer and Sontag (<a href=\"http://link.springer.com/article/10.1007/s00285-009-0309-0\" target=\"_blank\">J. Math. Biol. 61(4), 2010</a>)");
   strcpy(PMglob, "Theorem 2.2 in Donnell and Banaji (<a href=\"http://epubs.siam.org/doi/abs/10.1137/120898486\" target=\"_blank\">SIADS, 12(2), 2013</a>)");
@@ -7487,6 +7489,7 @@ int analysereacs(const char fname[], int q, bool htmlswitch, bool statswitch){
     strcpy(weakrstr, "weakly reversible");
     strcpy(deftheor, "deficiency theory");
     strcpy(feinbergdef0, "Theorem 6.1.1 in Feinberg (Chem. Eng. Sci. 42(10), 1987)");
+    strcpy(panteadef0, "Theorem 6.3 in Pantea (SIAM J. Math. Anal. 44(3), 2012)");
     strcpy(feinbergdef1, "Theorem 6.2.1 in Feinberg (Chem. Eng. Sci. 42(10), 1987)");
     strcpy(ALSstr, "Theorem 2 in Angeli, De Leenheer and Sontag (J. Math. Biol. 61(4), 2010)");
     strcpy(PMglob, "Theorem 2.2 in Donnell and Banaji (SIADS, 12(2), 2013)");
@@ -7573,7 +7576,12 @@ int analysereacs(const char fname[], int q, bool htmlswitch, bool statswitch){
     weakr=weak_rev(imat3, Srank, stoichl, stoichr, nlen, cols3, &numcomp, &numlink, haszerocomplex, &zeronotterm, &zeroinitial, &def1flg, &deficiency, chems, q, statswitch, htmlswitch);
     if(deficiency==0){
       if(weakr){
-	fprintf(stdout, "This is a %s %s zero network. According to %s, with mass-action kinetics: each nontrivial stoichiometry class admits exactly one positive equilibrium, and this equilibrium is locally asymptotically stable relative to its stoichiometry class. There are no positive, nontrivial periodic orbits.\n\n", weakrstr, defstr, feinbergdef0);
+	if(Srank>3){
+	  fprintf(stdout, "This is a %s %s zero network. According to %s, with mass-action kinetics: each nontrivial stoichiometry class admits exactly one positive equilibrium, and this equilibrium is locally asymptotically stable relative to its stoichiometry class. There are no positive, nontrivial periodic orbits.\n\n", weakrstr, defstr, feinbergdef0);
+	}
+	else{
+	  fprintf(stdout, "This is a %s %s zero network with stoichiometric subspace of dimension %d. With mass-action kinetics: (i) According to %s, each nontrivial stoichiometry class admits exactly one positive equilibrium which attracts the relative interior of its stoichiometry class; (ii) By %s, this equilibrium is also locally asymptotically stable relative to its stoichiometry class. \n\n", weakrstr, defstr, Srank, panteadef0, feinbergdef0);
+	}
 	strcat(notrWSD, ". By ");strcat(notrWSD, deftheor);
 	strcat(notrWSD, " however, with mass action kinetics, the system has precisely one positive equilibrium on each nontrivial stoichiometry class");
       }
