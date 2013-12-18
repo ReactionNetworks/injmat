@@ -499,7 +499,6 @@ int minorisSNSsing(int **imat, int n, int m, int *vec1, int *vec2, int k, unsign
     }
   }
 
-  fprintf(stderr, "flag=%d\n, dt=%d\n", flag, dt);
   if(!flag || !dt) /* flag=0 means SNS; dt=0 means singular */
     return 1;
 
@@ -1079,7 +1078,7 @@ int isSSD1(int **imat, int n, int m, bool allm, int *rkbad, int q){
 	  ret=minorisSNSsing(imat, n, m, xcombs[r1], ycombs[r2], k, fk, pms);
 
 	if(!ret){
-	  fprintf(stderr, "aasubmatrix which fails to be sign-nonsingular or singular (t=%.0f):\n", (double) t);
+	  fprintf(stderr, "submatrix which fails to be sign-nonsingular or singular (t=%.0f):\n", (double) t);
 	  //fprintf(stderr, "det = %d\n", detsubmat(imat, n, m, xcombs[r1], ycombs[r2], k));
 	  //fprintf(stderr, "qualdet = %d\n", qualdetsubmat(imat, n, m, xcombs[r1], ycombs[r2], k-1));
 	  printsubmat(imat, xcombs[r1], ycombs[r2], k, k);
@@ -4233,10 +4232,12 @@ int qualdetsubmat(int **imat, int n, int m, int *i1, int *i2, int dim){
 	if(j!=i)
 	  i2a[r++]=i2[j];
       }
-      tot=qualp(tot,qualt(par(i),qualt(imat[i1[0]][i2[i]],qualdetsubmat(imat, n, m, i1+1, i2a, dim-1))));
+      tot=qualp(tot,qualt(par(i),qualt(sgn(imat[i1[0]][i2[i]]),qualdetsubmat(imat, n, m, i1+1, i2a, dim-1))));
     }
 
   }
+  //fprintf(stderr, "qualdet=%d\n", tot);
+
   return tot;
 
 }
