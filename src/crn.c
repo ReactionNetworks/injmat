@@ -40,6 +40,14 @@
 /* calculate the unsigned term in an n X n matrix corresponding */
 /* to permutation tm */
 
+int sgn(int i){
+  if(!i)
+    return 0;
+  if(i>0)
+    return 1;
+  return -1;
+}
+
 int unsterm(int **imat, int *tm, int n){
   int i,tot=1;
   for(i=0;i<n;i++)
@@ -490,6 +498,8 @@ int minorisSNSsing(int **imat, int n, int m, int *vec1, int *vec2, int k, unsign
       dt+=pms[i][k]*tmp;
     }
   }
+
+  fprintf(stderr, "flag=%d\n, dt=%d\n", flag, dt);
   if(!flag || !dt) /* flag=0 means SNS; dt=0 means singular */
     return 1;
 
@@ -1069,7 +1079,7 @@ int isSSD1(int **imat, int n, int m, bool allm, int *rkbad, int q){
 	  ret=minorisSNSsing(imat, n, m, xcombs[r1], ycombs[r2], k, fk, pms);
 
 	if(!ret){
-	  fprintf(stderr, "submatrix which fails to be sign-nonsingular or singular (t=%.0f):\n", (double) t);
+	  fprintf(stderr, "aasubmatrix which fails to be sign-nonsingular or singular (t=%.0f):\n", (double) t);
 	  //fprintf(stderr, "det = %d\n", detsubmat(imat, n, m, xcombs[r1], ycombs[r2], k));
 	  //fprintf(stderr, "qualdet = %d\n", qualdetsubmat(imat, n, m, xcombs[r1], ycombs[r2], k-1));
 	  printsubmat(imat, xcombs[r1], ycombs[r2], k, k);
@@ -4215,7 +4225,7 @@ int qualdetsubmat(int **imat, int n, int m, int *i1, int *i2, int dim){
   /* if(minorhas0rc(imat, n, m, i1, i2, dim)) */
   /*   return 0; */
   if(dim==1)
-    return imat[i1[0]][i2[0]];
+    return sgn(imat[i1[0]][i2[0]]);
   for (i=0;i<dim;i++){
     if(imat[i1[0]][i2[i]]!=0){
       r=0;
@@ -7420,7 +7430,7 @@ int analysereacs(const char fname[], int q, bool htmlswitch, bool statswitch){
 
 
   //Version x=year 2012+x, .y=month number, .z = revision number
-  fprintf(stdout, "Analysereacs version 1.12.1. (Please note that this is work in progress.)\n\n");
+  fprintf(stdout, "Analysereacs version 1.12.2. (Please note that this is work in progress.)\n\n");
 
   str=readfileintostr(fname);
   if(isonlyspace(str)){
@@ -7691,7 +7701,7 @@ int analysereacs(const char fname[], int q, bool htmlswitch, bool statswitch){
 	else if(persistflag){
 	  if(statswitch)
 	    fprintf(stdout, "PMflag2 (global with siph)\n");
-	  fprintf(stdout, "According to %s, the system (with general kinetics) is globally convergent in the following sense: all initial conditions on any nontrivial stoichiometry class converge to an equilibrium which is the unique equilibrium on its stoichiometry class, and is (for stoichiometry classes other than {0}) positive.\n\n", PMglob);
+	  fprintf(stdout, "According to %s, the system (with general kinetics) is globally convergent in the following sense: all initial conditions on any nontrivial stoichiometry class converge to an equilibrium which is positive and is the unique equilibrium on its stoichiometry class.\n\n", PMglob);
 	}
       }
       else if (PM1_flg==2){
