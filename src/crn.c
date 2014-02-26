@@ -6815,7 +6815,7 @@ bool weak_rev(int **imatir, int Srank, int **stoichl, int **stoichr, int n, int 
 
   if((*deficiency) && !(*def1flg)){
     if(htmlswitch)
-      fprintf(stdout, "The network is not deficiency zero and fails the conditions of the deficiency one theorem (see <a href=\"http://reaction-networks.net/wiki/Deficiency_theory.\" target=\"_blank\">the wiki</a> for more details.)\n\n");
+      fprintf(stdout, "The network is not deficiency zero and fails the conditions of the deficiency one theorem (see <a href=\"http://reaction-networks.net/wiki/Deficiency_theory\" target=\"_blank\">the wiki</a> for more details.)\n\n");
     else
       fprintf(stdout, "The network is not deficiency zero and fails the conditions of the deficiency one theorem.\n\n");
   }
@@ -7454,7 +7454,7 @@ int analysereacs(const char fname[], int q, bool htmlswitch, bool statswitch){
     strcpy(deftheor, "<a href=\"http://reaction-networks.net/wiki/Deficiency_theory\" target=\"_blank\">deficiency theory</a>");
     strcpy(feinbergdef0, "Theorem 6.1.1 in Feinberg (<a href=\"http://www.sciencedirect.com/science/article/pii/0009250987800994\" target=\"_blank\">Chem. Eng. Sci. 42(10), 1987</a>)");
     strcpy(panteadef0, "Theorem 6.3 in Pantea (<a href=\"http://epubs.siam.org/doi/abs/10.1137/110840509\" target=\"_blank\">SIAM J. Math. Anal. 44(3), 2012</a>)");
-    strcpy(feinbergdef1, "Theorem 6.2.1 in Feinberg (<a href=\"http://www.sciencedirect.com/science/article/pii/0009250987800994\" target=\"_blank\">Chem. Eng. Sci. 42(10), 1987</a>");
+    strcpy(feinbergdef1, "Theorem 6.2.1 in Feinberg (<a href=\"http://www.sciencedirect.com/science/article/pii/0009250987800994\" target=\"_blank\">Chem. Eng. Sci. 42(10), 1987</a>)");
   strcpy(ALSstr, "Theorem 2 in Angeli, De Leenheer and Sontag (<a href=\"http://link.springer.com/article/10.1007/s00285-009-0309-0\" target=\"_blank\">J. Math. Biol. 61(4), 2010</a>)");
   strcpy(PMglob, "Theorem 2.2 in Donnell and Banaji (<a href=\"http://epubs.siam.org/doi/abs/10.1137/120898486\" target=\"_blank\">SIADS, 12(2), 2013</a>)");
   strcpy(PMloc, "Theorem 2.1 in Donnell and Banaji (<a href=\"http://epubs.siam.org/doi/abs/10.1137/120898486\" target=\"_blank\">SIADS, 12(2), 2013</a>)");
