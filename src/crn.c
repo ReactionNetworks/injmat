@@ -7432,7 +7432,7 @@ int analysereacs(const char fname[], int q, bool htmlswitch, bool statswitch){
 
 
   //Version x=year 2012+x, .y=month number, .z = revision number
-  fprintf(stdout, "Analysereacs version 1.12.3. (Please note that this is work in progress.)\n\n");
+  fprintf(stdout, "Analysereacs version 2.2.0. (Please note that this is work in progress.)\n\n");
 
   str=readfileintostr(fname);
   if(isonlyspace(str)){
@@ -7574,9 +7574,71 @@ int analysereacs(const char fname[], int q, bool htmlswitch, bool statswitch){
 
     // Is the system weakly reversible?
     weakr=weak_rev(imat3, Srank, stoichl, stoichr, nlen, cols3, &numcomp, &numlink, haszerocomplex, &zeronotterm, &zeroinitial, &def1flg, &deficiency, chems, q, statswitch, htmlswitch);
+    //count the siphons
+    totsiphons=checksiphons(imat3,imat4,nlen,cols3,&allsiphons,&totminsiphons,&allminsiphons);
+
+    if(totsiphons){
+      fprintf(stderr, "%s of the system:\n", siphonstr);
+	printsiphons(allsiphons, totsiphons, chems);
+	fprintf(stderr, "Minimal %s of the system:\n", siphonstr);
+      printsiphons(allminsiphons, totminsiphons, chems);
+
+      persistflag=structpersist(imat3, nlen, cols3, allminsiphons, totminsiphons);
+      if(persistflag)
+	fprintf(stdout, "The system has %s, but is %s: no nontrivial stoichiometry class includes boundary equilibria.\n\n", siphonstr, structpers);
+    }
+
+   // test if the irreversible stoichiometric matrix has no positive vectors in its kernel
+    notallbd=hasposrkervec(imat3, nlen, cols3, 1);//strict
+    if(notallbd==-1 && hasposlimvec(imat3, nlen, cols3))
+      notallbd=0;
+
+    bdclass=hasposkervec(imat1, nlen, mlen, 1);//strict
+    if(bdclass==-1 && hasposimvec(imat1, nlen, mlen))
+      bdclass=0;//definitely unbounded
+
+    if(!bdclass)
+      fprintf(stdout, "%s.\n\n",unbddclass);
+    else if(bdclass==-1)//probably unbounded (shouldn't occur)
+      fprintf(stdout, "Stoichiometry classes may be unbounded.\n\n");
+    else
+      fprintf(stdout, "%s (each stoichiometry class contains at least one equilibrium).\n\n", bddclass);
+
+ 
+    //count the siphons
+    if(statswitch && !totsiphons)
+      fprintf(stdout, "SIPH0\n");
+    if(SSPO && posSSPO){ //deficiency zero tests didn't already answer these questions
+      if(!notallbd && !totsiphons){
+	if(!zeroinitial)//zero is an equilibrium
+	  fprintf(stdout, "The only equilibrium of the system is a trivial one (the system has no siphons, and no positive equilibria).\n\n");
+	else
+	  fprintf(stdout, "The system has no equilibria (the system has no siphons, no positive equilibria, and zero is not an equilbrium).\n\n");
+      }
+      /* else if(notallbd==-1 && !totsiphons){//shouldn't execute */
+      /* 	if(!zeroinitial)//zero is an equilibrium */
+      /* 	  fprintf(stdout, "The only equilibrium of the system appears to be the trivial one.\n\n"); */
+      /* 	else */
+      /* 	  fprintf(stdout, "The system appears to have no equilibria.\n\n"); */
+      /* } */
+      else if(!notallbd)
+	fprintf(stdout, "The system has no positive equilibria.\n\n");
+      /* else if(notallbd==-1)//shouldn't execute */
+      /* 	fprintf(stdout, "All equilibria appear to be boundary equilibria.\n\n"); */
+      else if(!totsiphons)
+	fprintf(stdout, "This system has no %s (the boundary includes no nontrivial equilbria).\n\n", siphonstr);
+    }
+
+
     if(deficiency==0){
       if(weakr){
-	if(Srank>3){
+	if(Srank>3 && totsiphons==0){
+	  fprintf(stdout, "This is a %s %s zero network. According to %s, with mass-action kinetics: each nontrivial stoichiometry class admits exactly one positive equilibrium, and this equilibrium is locally asymptotically stable relative to its stoichiometry class. In fact, as the system has no siphons, this equilibrium is globally asymptotically stable relative to its stoichiometry class (including the boundary).\n\n", weakrstr, defstr, feinbergdef0);
+	}
+	else if(Srank>3 && persistflag){
+	  fprintf(stdout, "This is a %s %s zero network. According to %s, with mass-action kinetics: each nontrivial stoichiometry class admits exactly one positive equilibrium, and this equilibrium is locally asymptotically stable relative to its stoichiometry class. In fact, as the system is structurally persistent, this equilibrium is globally asymptotically stable with respect to the relative interior of its stoichiometry class.\n\n", weakrstr, defstr, feinbergdef0);
+	}
+	else if(Srank>3){
 	  fprintf(stdout, "This is a %s %s zero network. According to %s, with mass-action kinetics: each nontrivial stoichiometry class admits exactly one positive equilibrium, and this equilibrium is locally asymptotically stable relative to its stoichiometry class. There are no positive, nontrivial periodic orbits.\n\n", weakrstr, defstr, feinbergdef0);
 	}
 	else{
@@ -7622,6 +7684,7 @@ int analysereacs(const char fname[], int q, bool htmlswitch, bool statswitch){
 
       fprintf(stdout, "The network has %s %d.\n\n", defstr, deficiency);
     }
+    // end of deficiency theory calculations
 
     if((simp_flg=simple_CRN(imat1,nlen,mlen))){
       if(simp_flg==1)
@@ -7635,57 +7698,7 @@ int analysereacs(const char fname[], int q, bool htmlswitch, bool statswitch){
     /* fprintf(stderr, "Srank = %d\n", Srank); */
 
     // check if the stoichiometric matrix has positive vectors in its left-kernel
-    bdclass=hasposkervec(imat1, nlen, mlen, 1);//strict
-    if(bdclass==-1 && hasposimvec(imat1, nlen, mlen))
-      bdclass=0;//definitely unbounded
 
-    if(!bdclass)
-      fprintf(stdout, "%s.\n\n",unbddclass);
-    else if(bdclass==-1)//probably unbounded (shouldn't occur)
-      fprintf(stdout, "Stoichiometry classes may be unbounded.\n\n");
-    else
-      fprintf(stdout, "%s (each stoichiometry class contains at least one equilibrium).\n\n", bddclass);
-
-    // test if the irreversible stoichiometric matrix has no positive vectors in its kernel
-    notallbd=hasposrkervec(imat3, nlen, cols3, 1);//strict
-    if(notallbd==-1 && hasposlimvec(imat3, nlen, cols3))
-      notallbd=0;
-
-    //count the siphons
-    totsiphons=checksiphons(imat3,imat4,nlen,cols3,&allsiphons,&totminsiphons,&allminsiphons);
-    if(statswitch && !totsiphons)
-      fprintf(stdout, "SIPH0\n");
-    if(SSPO && posSSPO){ //deficiency zero tests didn't already answer these questions
-      if(!notallbd && !totsiphons){
-	if(!zeroinitial)//zero is an equilibrium
-	  fprintf(stdout, "The only equilibrium of the system is a trivial one (the system has no siphons, and no positive equilibria).\n\n");
-	else
-	  fprintf(stdout, "The system has no equilibria (the system has no siphons, no positive equilibria, and zero is not an equilbrium).\n\n");
-      }
-      /* else if(notallbd==-1 && !totsiphons){//shouldn't execute */
-      /* 	if(!zeroinitial)//zero is an equilibrium */
-      /* 	  fprintf(stdout, "The only equilibrium of the system appears to be the trivial one.\n\n"); */
-      /* 	else */
-      /* 	  fprintf(stdout, "The system appears to have no equilibria.\n\n"); */
-      /* } */
-      else if(!notallbd)
-	fprintf(stdout, "The system has no positive equilibria.\n\n");
-      /* else if(notallbd==-1)//shouldn't execute */
-      /* 	fprintf(stdout, "All equilibria appear to be boundary equilibria.\n\n"); */
-      else if(!totsiphons)
-	fprintf(stdout, "This system has no %s (the boundary includes no nontrivial equilbria).\n\n", siphonstr);
-    }
-
-    if(totsiphons){
-      fprintf(stderr, "%s of the system:\n", siphonstr);
-	printsiphons(allsiphons, totsiphons, chems);
-	fprintf(stderr, "Minimal %s of the system:\n", siphonstr);
-      printsiphons(allminsiphons, totminsiphons, chems);
-
-      persistflag=structpersist(imat3, nlen, cols3, allminsiphons, totminsiphons);
-      if(persistflag)
-	fprintf(stdout, "The system has %s, but is %s: no nontrivial stoichiometry class includes boundary equilibria.\n\n", siphonstr, structpers);
-    }
 
     if((ALS_flg=ALS_JMB_2009(imat1,imat2,nlen,mlen,allgood,bdclass,persistflag))){
       if(ALS_flg==1){
