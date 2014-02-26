@@ -7632,10 +7632,10 @@ int analysereacs(const char fname[], int q, bool htmlswitch, bool statswitch){
 
     if(deficiency==0){
       if(weakr){
-	if(Srank>3 && totsiphons==0){
+	if(totsiphons==0){
 	  fprintf(stdout, "This is a %s %s zero network. According to %s, with mass-action kinetics: each nontrivial stoichiometry class admits exactly one positive equilibrium, and this equilibrium is locally asymptotically stable relative to its stoichiometry class. In fact, as the system has no siphons, this equilibrium is globally asymptotically stable relative to its stoichiometry class (including the boundary).\n\n", weakrstr, defstr, feinbergdef0);
 	}
-	else if(Srank>3 && persistflag){
+	else if(persistflag){
 	  fprintf(stdout, "This is a %s %s zero network. According to %s, with mass-action kinetics: each nontrivial stoichiometry class admits exactly one positive equilibrium, and this equilibrium is locally asymptotically stable relative to its stoichiometry class. In fact, as the system is structurally persistent, this equilibrium is globally asymptotically stable with respect to the relative interior of its stoichiometry class.\n\n", weakrstr, defstr, feinbergdef0);
 	}
 	else if(Srank>3){
