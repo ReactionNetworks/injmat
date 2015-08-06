@@ -4,4 +4,4 @@ sudo apt-get install libginac-dev*
 
 To install GLPK
 
-sudo apt-get install glpk
+sudo apt-get install libglpk-dev*

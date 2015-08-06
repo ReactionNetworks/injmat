@@ -108,6 +108,7 @@ void nextnumk(int *vec, int n, int base, long k);
 int S2isWSD(char *fname, int q, int maxonly);
 int minorisSNSsing2(int **imat, int n, int m, int *vec1, int *vec2, int k);
 int qualdetsubmat(int **imat, int n, int m, int *i1, int *i2, int dim);
+int qualdetsubmat1(int **imat, int n, int m, int *i1, int *i2, int dim);
 void printdotindsubmat(FILE *fd, int **imat, int *vec1, int *vec2, int k1, int k2, long lab);
 int cuttails(int **mat, int n, int m, int *rw, int *col, int **n1, int **m1);
 int addtwointstr(int k, int *s, int *s1, int len1, int len2, int ***t);

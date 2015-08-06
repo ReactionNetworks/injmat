@@ -1,4 +1,4 @@
-/* Copyright (C) 2010-2013, Murad Banaji
+/* Copyright (C) 2010-2015, Murad Banaji
  *
  * This file is part of QUALMAT
  *
@@ -640,7 +640,7 @@ int submat_signpat_compat(int **imat1, int **imat2, int n, int m, int *vec1, int
 
   if((dt=detsubmat(imat1, n, m, vec1, vec2, k))==0)
     return 1;
-  if((qd=qualdetsubmat(imat2, n, m, vec1, vec2, k))==0)
+  if((qd=qualdetsubmat1(imat2, n, m, vec1, vec2, k))==0)
     return 1;
   if(qd==2)
     return 0;
@@ -648,6 +648,8 @@ int submat_signpat_compat(int **imat1, int **imat2, int n, int m, int *vec1, int
     return -1;
   if(dt*qd>0) // a positive product: keep track of this info
     return 2;
+
+
 
   fk=factorial(k);
   if(k<=rtrig){
@@ -724,7 +726,6 @@ int mat_signpat_compat0(int **imat1, int imatrank, int **imat2, int n, int m, in
   int flag=3, flg;
   //  int imatrank=matrank(imat1,n,m);
   bool posprod=0;
-
   for(k=imatrank;k>=1;k--){
     if(k==imatrank-1 && !posprod) // not r-strongly compatible
       flag=2;
@@ -2179,7 +2180,7 @@ int mats_compat(int **imat1, int **imat2, int n, int m, int q){
 }
 
 
-// the Mass-action Jacobian is sign nonsingular
+// the mass action Jacobian is sign nonsingular
 
 
 int allminorsigns(int **imat1, int **imat2, int n, int m, int q){
@@ -2191,7 +2192,7 @@ int allminorsigns(int **imat1, int **imat2, int n, int m, int q){
   int sgn=0;
   long countp, countn;
 
-  fprintf(stderr, "Checking all minors for mass-action Jacobian.\n\n");
+  fprintf(stderr, "Checking all minors for mass action Jacobian.\n\n");
 
   r=min(n,m);
 
@@ -2276,7 +2277,7 @@ int MAisSNS(int **imat1, int **imat2, int n, int m, int q){
   int val;
   int sgn=0;
 
-  fprintf(stderr, "Checking if mass-action Jacobian is SNS.\n\n");
+  fprintf(stderr, "Checking if mass action Jacobian is SNS.\n\n");
 
   if(m<n)
     return 0;
@@ -2297,7 +2298,7 @@ int MAisSNS(int **imat1, int **imat2, int n, int m, int q){
       else if((sgn >0 && val < 0) || (sgn <0 && val > 0)){
 	free_imatrix(xcombs, 0, cnk-1, 0, k-1);
 	free_imatrix(ycombs, 0, cmk-1, 0, k-1);
-	fprintf(stderr, "Finished checking if mass-action Jacobian is SNS: it has terms of opposite sign.\n---------------------------------------\n");
+	fprintf(stderr, "Finished checking if mass action Jacobian is SNS: it has terms of opposite sign.\n---------------------------------------\n");
 	return 0;
       }
    
@@ -2309,11 +2310,11 @@ int MAisSNS(int **imat1, int **imat2, int n, int m, int q){
 
 
   if(sgn==0){
-    fprintf(stderr, "Finished checking if mass-action Jacobian is SNS: it is sign singular.\n---------------------------------------\n");
+    fprintf(stderr, "Finished checking if mass action Jacobian is SNS: it is sign singular.\n---------------------------------------\n");
     return 0;
   }
   else
-    fprintf(stderr, "Finished checking if mass-action Jacobian is SNS: it is.\n---------------------------------------\n");
+    fprintf(stderr, "Finished checking if mass action Jacobian is SNS: it is.\n---------------------------------------\n");
 
   return 1;
 }
@@ -2951,7 +2952,7 @@ int checksiphons(int **mat1, int **mat2, int n, int m, int ***allsiphons, int *t
   int totsiphons=0;
   (*totminsiphons)=0;
 
-  for(k=1;k<n;k++){// each dimension
+  for(k=1;k<=n;k++){// each dimension
     xcombs=allcombsgen(n,k);
     cnk=comb(n,k);
     for(i=0;i<cnk;i++){//each subset
@@ -4215,6 +4216,9 @@ int sgnf(int j){
 
 // the qualitative determinant (outputs are 
 // 0,1,-1 and 2 where 2 means unsigned)
+// applies only to a real matrix which defines a sign pattern
+// namely, not a matrix pattern
+// namely, no unsigned entries allowed
 
 int qualdetsubmat(int **imat, int n, int m, int *i1, int *i2, int dim){
   int i, j, r;
@@ -4243,9 +4247,36 @@ int qualdetsubmat(int **imat, int n, int m, int *i1, int *i2, int dim){
 }
 
 
+// the qualitative determinant (outputs are 
+// 0,1,-1 and 2 where 2 means unsigned)
+// applies to a matrix pattern, namely entries must be
+// only 0,1,-1, and 2, where 2 means unsigned 
 
+int qualdetsubmat1(int **imat, int n, int m, int *i1, int *i2, int dim){
+  int i, j, r;
+  int tot=0;
+  int i2a[dim-1];
+  /* assume this check has already been done. */
+  /* if(minorhas0rc(imat, n, m, i1, i2, dim)) */
+  /*   return 0; */
+  if(dim==1)
+    return imat[i1[0]][i2[0]];
+  for (i=0;i<dim;i++){
+    if(imat[i1[0]][i2[i]]!=0){
+      r=0;
+      for(j=0;j<dim;j++){
+	if(j!=i)
+	  i2a[r++]=i2[j];
+      }
+      tot=qualp(tot,qualt(par(i),qualt(imat[i1[0]][i2[i]],qualdetsubmat1(imat, n, m, i1+1, i2a, dim-1))));
+    }
 
+  }
+  //fprintf(stderr, "qualdet=%d\n", tot);
 
+  return tot;
+
+}
 
 
 
@@ -7292,7 +7323,6 @@ int hasPM1factors(int **Gamma, int **Vpat, int n, int m, int allgood, int q){
   /* printmat(Lambda,n,rdim); */
   /* printmat(Theta,rdim,m); */
 
-
   if((cd=coldegree(Theta, rdim, m))<=2 && !hasoloops(Theta, resgn, rdim, m) && matrank(Theta, rdim, m)==rdim-1){//also resigns the second factor
     genflg=1;
     if(!q){
@@ -7386,21 +7416,29 @@ int analysereacs(const char fname[], int q, bool htmlswitch, bool statswitch){
   int wsdflag=0;
   int compatflag=0;
   int MAcompatflag=0;
-  char mpnestr[100];
-  char IC1str[300];
-  char IC1ppstr[300];
-  char IC1pstr[300];
-  char IC3str[300];
-  char IC13str[500];
-  char IC1pp3str[500];
-  char IC1p3str[500];
-  char MAIC3[500];
-  char MAIC2[500];
-  char MAIC2p[500];
-  char MAIC2pp[500];
-  char MAIC2IC3[500];
-  char MAIC2pIC3[500];
-  char MAIC2ppIC3[500];
+  char IC1maxpp[150];
+  char IC1maxp[150];
+  char IC1max[150];
+  char IC1maxstr[300];
+  char IC1maxppstr[300];
+  char IC1maxpstr[300];
+  char IC2[150];
+  char IC2max[150];
+  char IC2maxstr[300];
+  char IC1maxIC2maxstr[500];
+  char IC1maxppIC2maxstr[500];
+  char IC1maxpIC2maxstr[500];
+  char failsIC1[200];
+  char IC1[150];
+  char IC1p[150];
+  char IC1pp[150];
+  char MAIC2max[500];
+  char MAIC1[500];
+  char MAIC1p[500];
+  char MAIC1pp[500];
+  char MAIC1IC2max[500];
+  char MAIC1pIC2max[500];
+  char MAIC1ppIC2max[500];
   char notSSD[500];
   char notWSD[500];
   char notrWSD[500];
@@ -7420,11 +7458,14 @@ int analysereacs(const char fname[], int q, bool htmlswitch, bool statswitch){
   char structpers[200];
   char bddclass[300];
   char unbddclass[300];
+  char max1_eq_per_class[200];
+  char max1_pos_eq_per_class[200];
+  char max1_eq_per_nontriv_class[200];
   int totsiphons=1,totminsiphons=0,**allsiphons=NULL,**allminsiphons=NULL;
   bool persistflag=1,def1flg=0;
-  int bdclass, notallbd;
+  int bdclass, notallbd,PC1=0;
   int Srank,numlink,numcomp,deficiency,simp_flg,ALS_flg,PM1_flg;
-  bool weakr, haszerocomplex=0,zeronotterm,zeroinitial,SSPO=1,posSSPO=1;
+  bool weakr, haszerocomplex=0,zeronotterm,zeroinitial,SSPO=1,posSSPO=1,zerounique=0;
   char *tmpstr;
 
   //SauroSplit((char *)("datfiles/d_d2s3r3.txt"), (char *)("datfiles/s3r3/s3r3"));
@@ -7432,7 +7473,7 @@ int analysereacs(const char fname[], int q, bool htmlswitch, bool statswitch){
 
 
   //Version x=year 2012+x, .y=month number, .z = revision number
-  fprintf(stdout, "Analysereacs version 2.2.0. (Please note that this is work in progress.)\n\n");
+  fprintf(stdout, "Analysereacs version 3.8.0. (Please note that this is work in progress.)\n\n");
 
   str=readfileintostr(fname);
   if(isonlyspace(str)){
@@ -7442,81 +7483,6 @@ int analysereacs(const char fname[], int q, bool htmlswitch, bool statswitch){
   }
 
 
-
-  if(htmlswitch){
-    strcpy(BanajiPanteastr, "<a href=\"http://arxiv.org/abs/1309.6771\" target=\"_blank\">Banaji and Pantea, arxiv:1309.6771</a>");
-    strcpy(bddclass, "<a href=\"http://reaction-networks.net/wiki/CoNtRol#Stoichiometric_subspace_and_stoichiometry_classes\" target=\"_blank\">Stoichiometry classes are bounded</a>");
-    strcpy(unbddclass, "<a href=\"http://reaction-networks.net/wiki/CoNtRol#Stoichiometric_subspace_and_stoichiometry_classes\" target=\"_blank\">Stoichiometry classes are unbounded</a> (the stoichiometric subspace includes a nonnegative vector)");
-    strcpy(structpers, "<a href=\"http://reaction-networks.net/wiki/CoNtRol#Persistence_condition_2_.28PC2.29\" target=\"_blank\">structurally persistent</a>");
-    strcpy(siphonstr, "<a href=\"http://reaction-networks.net/wiki/CoNtRol#Siphon\" target=\"_blank\">siphons</a>");
-    strcpy(defstr, "<a href=\"http://reaction-networks.net/wiki/Deficiency#Deficiency\" target=\"_blank\">deficiency</a>");
-    strcpy(weakrstr, "<a href=\"http://reaction-networks.net/wiki/Weakly_reversible#Weak_reversibility\" target=\"_blank\">weakly reversible</a>");
-    strcpy(deftheor, "<a href=\"http://reaction-networks.net/wiki/Deficiency_theory\" target=\"_blank\">deficiency theory</a>");
-    strcpy(feinbergdef0, "Theorem 6.1.1 in Feinberg (<a href=\"http://www.sciencedirect.com/science/article/pii/0009250987800994\" target=\"_blank\">Chem. Eng. Sci. 42(10), 1987</a>)");
-    strcpy(panteadef0, "Theorem 6.3 and preceding remarks in Pantea (<a href=\"http://epubs.siam.org/doi/abs/10.1137/110840509\" target=\"_blank\">SIAM J. Math. Anal. 44(3), 2012</a>)");
-    strcpy(feinbergdef1, "Theorem 6.2.1 in Feinberg (<a href=\"http://www.sciencedirect.com/science/article/pii/0009250987800994\" target=\"_blank\">Chem. Eng. Sci. 42(10), 1987</a>)");
-  strcpy(ALSstr, "Theorem 2 in Angeli, De Leenheer and Sontag (<a href=\"http://link.springer.com/article/10.1007/s00285-009-0309-0\" target=\"_blank\">J. Math. Biol. 61(4), 2010</a>)");
-  strcpy(PMglob, "Theorem 2.2 in Donnell and Banaji (<a href=\"http://epubs.siam.org/doi/abs/10.1137/120898486\" target=\"_blank\">SIADS, 12(2), 2013</a>)");
-  strcpy(PMloc, "Theorem 2.1 in Donnell and Banaji (<a href=\"http://epubs.siam.org/doi/abs/10.1137/120898486\" target=\"_blank\">SIADS, 12(2), 2013</a>)");
-  strcpy(mpnestr, "<a title=\"MPNE\" href=\"http://reaction-networks.net/wiki/CoNtRol#MPNE\">MPNE</a>");
-  strcpy(IC1ppstr, "General kinetics: no stoichiometry class includes more than one equilibrium. The system satisfies condition <a title=\"IC1++\" href=\"http://reaction-networks.net/wiki/CoNtRol#Injectivity_condition_1.2B.2B_.28IC1.2B.2B.29\">IC1++</a>");
-    strcpy(IC1pstr, "General kinetics: no nontrivial stoichiometry class includes more than one equilibrium. The system satisfies condition <a title=\"IC1+\" href=\"http://reaction-networks.net/wiki/CoNtRol#Injectivity_condition_1.2B_.28IC1.2B.29\">IC1+</a>");
-    strcpy(IC1str, "General kinetics: no stoichiometry class includes more than one positive equilibrium. The system satisfies condition <a title=\"IC1\" href=\"http://reaction-networks.net/wiki/CoNtRol#Injectivity_condition_1_.28IC1.29\">IC1</a>");
-    strcpy(IC3str, "General kinetics: the fully open system is injective. The system satisfies condition <a title=\"IC3\" href=\"http://reaction-networks.net/wiki/CoNtRol#Injectivity_condition_3_.28IC3.29\">IC3</a>");
-    strcpy(IC13str, "General kinetics: no stoichiometry class includes more than one positive equilibrium, and the fully open system is injective. The system satisfies conditions <a title=\"IC1\" href=\"http://reaction-networks.net/wiki/CoNtRol#Injectivity_condition_1_.28IC1.29\">IC1</a> and <a title=\"IC3\" href=\"http://reaction-networks.net/wiki/CoNtRol#Injectivity_condition_3_.28IC3.29\">IC3</a>");
-    strcpy(IC1p3str, "General kinetics: no nontrivial stoichiometry class includes more than one equilibrium, and the fully open system is injective. The system satisfies conditions <a title=\"IC1+\" href=\"http://reaction-networks.net/wiki/CoNtRol#Injectivity_condition_1.2B_.28IC1.2B.29\">IC1+</a> and <a title=\"IC3\" href=\"http://reaction-networks.net/wiki/CoNtRol#Injectivity_condition_3_.28IC3.29\">IC3</a>");
-    strcpy(IC1pp3str, "General kinetics: no stoichiometry class includes more than one equilibrium, and the fully open system is injective. The system satisfies conditions <a title=\"IC1++\" href=\"http://reaction-networks.net/wiki/CoNtRol#Injectivity_condition_1.2B.2B_.28IC1.2B.2B.29\">IC1++</a> and <a title=\"IC3\" href=\"http://reaction-networks.net/wiki/CoNtRol#Injectivity_condition_3_.28IC3.29\">IC3</a>");
-    strcpy(MAIC2, "Mass action kinetics: the system satisfies condition <a title=\"IC2\" href=\"http://reaction-networks.net/wiki/CoNtRol#Injectivity_condition_2_.28IC2.29\">IC2</a>");
-    strcpy(MAIC2p, "Mass action kinetics: no nontrivial stoichiometry class includes boundary equilibria or has more than one equilibrium. The system satisfies condition <a title=\"IC2+\" href=\"http://reaction-networks.net/wiki/CoNtRol#Injectivity_condition_2.2B_.28IC2.2B.29\">IC2+</a>");
-    strcpy(MAIC2pp, "Mass action kinetics: the system has no nonzero boundary equilibria and no stoichiometry class includes more than one equilibrium. The system satisfies condition <a title=\"IC2++\" href=\"http://reaction-networks.net/wiki/CoNtRol#Injectivity_condition_2.2B.2B_.28IC2.2B.2B.29\">IC2++</a>");
-    strcpy(MAIC3, "Mass action kinetics: the fully open system is injective. The system satisfies condition <a title=\"IC3\" href=\"http://reaction-networks.net/wiki/CoNtRol#Injectivity_condition_3_.28IC3.29\">IC3</a>");
-    strcpy(MAIC2IC3, "Mass action kinetics: no stoichiometry class includes more than one positive equilibrium, and the fully open system is injective. The system satisfies conditions <a title=\"IC2\" href=\"http://reaction-networks.net/wiki/CoNtRol#Injectivity_condition_2_.28IC2.29\">IC2</a> and <a title=\"IC3\" href=\"http://reaction-networks.net/wiki/CoNtRol#Injectivity_condition_3_.28IC3.29\">IC3</a>");
-    strcpy(MAIC2pIC3, "Mass action kinetics: no nontrivial stoichiometry class has boundary equilibria or includes more than one equilibrium, and the fully open system is injective. The system satisfies conditions <a title=\"IC2+\" href=\"http://reaction-networks.net/wiki/CoNtRol#Injectivity_condition_2.2B_.28IC2.2B.29\">IC2+</a> and <a title=\"IC3\" href=\"http://reaction-networks.net/wiki/CoNtRol#Injectivity_condition_3_.28IC3.29\">IC3</a>");
-    strcpy(MAIC2ppIC3, "Mass action kinetics: the system has no nonzero boundary equilibria, no stoichiometry class includes more than one equilibrium, and the fully open system is injective. The system satisfies conditions <a title=\"IC2++\" href=\"http://reaction-networks.net/wiki/CoNtRol#Injectivity_condition_2.2B.2B_.28IC2.2B.2B.29\">IC2++</a> and <a title=\"IC3\" href=\"http://reaction-networks.net/wiki/CoNtRol#Injectivity_condition_3_.28IC3.29\">IC3</a>");
-    strcpy(notSSD, "There exists a choice of power-law kinetics and inflows and outflows such that the fully open system has multiple positive equilibria");
-    strcpy(notrWSD, "Mass action kinetics: the system fails condition <a title=\"IC2\" href=\"http://reaction-networks.net/wiki/CoNtRol#Injectivity_condition_2_.28IC2.29\">IC2</a> for some choice of rate constants");
-    strcpy(notWSD, "Mass action kinetics: there exists a choice of rate constants and inflows and outflows such that the system fails condition <a title=\"IC3\" href=\"http://reaction-networks.net/wiki/CoNtRol#Injectivity_condition_3_.28IC3.29\">IC3</a> (the fully open system is noninjective)");
-    strcpy(notrcmpt, "There exists a choice of power-law kinetics such that the system fails condition <a title=\"IC2\" href=\"http://reaction-networks.net/wiki/CoNtRol#Injectivity_condition_2_.28IC2.29\">IC2</a>");
-    strcpy(notrcmpt1, "There exists a choice of power-law kinetics such that the system has multiple positive equilibria on some stoichiometry class");
-}
-  else{
-    strcpy(BanajiPanteastr, "Banaji and Pantea, arxiv:1309.6771");
-    strcpy(bddclass, "Stoichiometry classes are bounded");
-    strcpy(unbddclass, "Stoichiometry classes are unbounded (the stoichiometric subspace includes a nonnegative vector)");
-    strcpy(structpers, "structurally persistent");
-    strcpy(siphonstr, "siphons");
-    strcpy(defstr, "deficiency");
-    strcpy(weakrstr, "weakly reversible");
-    strcpy(deftheor, "deficiency theory");
-    strcpy(feinbergdef0, "Theorem 6.1.1 in Feinberg (Chem. Eng. Sci. 42(10), 1987)");
-    strcpy(panteadef0, "Theorem 6.3 and preceding remarks in Pantea (SIAM J. Math. Anal. 44(3), 2012)");
-    strcpy(feinbergdef1, "Theorem 6.2.1 in Feinberg (Chem. Eng. Sci. 42(10), 1987)");
-    strcpy(ALSstr, "Theorem 2 in Angeli, De Leenheer and Sontag (J. Math. Biol. 61(4), 2010)");
-    strcpy(PMglob, "Theorem 2.2 in Donnell and Banaji (SIADS, 12(2), 2013)");
-    strcpy(PMloc, "Theorem 2.1 in Donnell and Banaji (SIADS, 12(2), 2013)");
-
-    strcpy(mpnestr, "MPNE");
-    strcpy(IC1ppstr, "General kinetics: no stoichiometry class includes more than one equilibrium. The system satisfies condition IC1++");
-    strcpy(IC1pstr, "General kinetics: no nontrivial stoichiometry class includes more than one equilibrium. The system satisfies condition IC1+");
-    strcpy(IC1str, "General kinetics: no stoichiometry class includes more than one positive equilibrium. The system satisfies condition IC1");
-    strcpy(IC3str, "General kinetics: the fully open system is injective. The system satisfies condition IC3");
-    strcpy(IC13str, "General kinetics: no stoichiometry class includes more than one positive equilibrium, and the fully open system is injective. The system satisfies conditions IC1 and IC3");
-    strcpy(IC1pp3str, "General kinetics: no stoichiometry class includes more than one equilibrium, and the fully open system is injective. The system satisfies conditions IC1++ and IC3");
-    strcpy(IC1p3str, "General kinetics: no nontrivial stoichiometry class includes more than one equilibrium, and the fully open system is injective. The system satisfies conditions IC1+ and IC3");
-    strcpy(MAIC2, "Mass action kinetics: the system satisfies condition IC2");
-    strcpy(MAIC2p, "Mass action kinetics: no nontrivial stoichiometry class includes boundary equilibria or has more than one equilibrium. The system satisfies condition IC2+");
-    strcpy(MAIC2pp, "Mass action kinetics: the system has no nonzero boundary equilibria and no stoichiometry class includes more than one equilibrium. The system satisfies condition IC2++");
-    strcpy(MAIC3, "Mass action kinetics: the fully open system is injective. The system satisfies condition IC3");
-    strcpy(MAIC2IC3, "Mass action kinetics: no stoichiometry class includes more than one positive equilibrium, and the fully open system is injective. The system satisfies conditions IC2 and IC3");
-   strcpy(MAIC2pIC3, "Mass action kinetics: no nontrivial stoichiometry class has boundary equilibria or includes more than one equilibrium, and the fully open system is injective. The system satisfies conditions IC2+ and IC3");
-   strcpy(MAIC2ppIC3, "Mass action kinetics: the system has no nonzero boundary equilibria, no stoichiometry class includes more than one equilibrium, and the fully open system is injective. The system satisfies conditions IC2++ and IC3");
-   strcpy(notSSD, "There exists a choice of power-law kinetics and inflows and outflows such that the fully open system has multiple positive equilibria");
-    strcpy(notrWSD, "Mass action kinetics: the system fails condition IC2 for some choice of rate constants");
-    strcpy(notWSD, "Mass action kinetics: there exists a choice of rate constants and inflows and outflows such that the system fails condition IC3 (the fully open system is noninjective)");
-    strcpy(notrcmpt, "There exists a choice of power-law kinetics such that the system fails condition IC2");
-    strcpy(notrcmpt1, "There exists a choice of power-law kinetics such that the system has multiple positive equilibria on some stoichiometry class");
-
-  }
 
 
   line = getlinefromstr(&pos, str);
@@ -7572,6 +7538,20 @@ int analysereacs(const char fname[], int q, bool htmlswitch, bool statswitch){
 
     fprintf(stderr, "\n_________________________________\n\n");
 
+
+    if(htmlswitch){
+      strcpy(bddclass, "<a href=\"http://reaction-networks.net/wiki/CoNtRol#Stoichiometric_subspace_and_stoichiometry_classes\" target=\"_blank\">Stoichiometry classes are bounded</a>");
+      strcpy(unbddclass, "<a href=\"http://reaction-networks.net/wiki/CoNtRol#Stoichiometric_subspace_and_stoichiometry_classes\" target=\"_blank\">Stoichiometry classes are unbounded</a> (the stoichiometric subspace includes a nonnegative vector)");
+      strcpy(structpers, "<a href=\"http://reaction-networks.net/wiki/CoNtRol#Persistence_condition_2_.28PC2.29\" target=\"_blank\">structurally persistent</a>");
+      strcpy(siphonstr, "<a href=\"http://reaction-networks.net/wiki/CoNtRol#Siphon\" target=\"_blank\">siphons</a>");
+    }
+    else{
+      strcpy(bddclass, "Stoichiometry classes are bounded");
+      strcpy(unbddclass, "Stoichiometry classes are unbounded (the stoichiometric subspace includes a nonnegative vector)");
+      strcpy(structpers, "structurally persistent");
+      strcpy(siphonstr, "siphons");
+    }
+
     // Is the system weakly reversible?
     weakr=weak_rev(imat3, Srank, stoichl, stoichr, nlen, cols3, &numcomp, &numlink, haszerocomplex, &zeronotterm, &zeroinitial, &def1flg, &deficiency, chems, q, statswitch, htmlswitch);
     //count the siphons
@@ -7579,20 +7559,33 @@ int analysereacs(const char fname[], int q, bool htmlswitch, bool statswitch){
 
     if(totsiphons){
       fprintf(stderr, "%s of the system:\n", siphonstr);
-	printsiphons(allsiphons, totsiphons, chems);
-	fprintf(stderr, "Minimal %s of the system:\n", siphonstr);
+      printsiphons(allsiphons, totsiphons, chems);
+      fprintf(stderr, "Minimal %s of the system:\n", siphonstr);
       printsiphons(allminsiphons, totminsiphons, chems);
-
       persistflag=structpersist(imat3, nlen, cols3, allminsiphons, totminsiphons);
-      if(persistflag)
-	fprintf(stdout, "The system has %s, but is %s: no nontrivial stoichiometry class includes boundary equilibria.\n\n", siphonstr, structpers);
+      if(!persistflag){
+	fprintf(stdout, "The system is not %s (it has critical siphons).\n\n", structpers);
+	if(totsiphons==1 && allsiphons[0][0]==nlen)
+	  zerounique=1; // only siphon is the one with all species, but this is critical
+      }
+
+    }
+    else{ //there are no siphons at all (as an indirect consequence stoichiometry classes must be unbounded, for otherwise there would at least be the trivial siphon.)
+      PC1=1;
+      //	fprintf(stdout, "The system has no %s, and is %s. There are no boundary equilibria.\n\n", siphonstr, structpers);
     }
 
    // test if the irreversible stoichiometric matrix has no positive vectors in its kernel
-    notallbd=hasposrkervec(imat3, nlen, cols3, 1);//strict
+    if(allgood && allrev) //simply reversible
+      notallbd=1;
+    else if(weakr) //weakly reversible
+      notallbd=1;
+    else
+      notallbd=hasposrkervec(imat3, nlen, cols3, 1);//strict
     if(notallbd==-1 && hasposlimvec(imat3, nlen, cols3))
       notallbd=0;
 
+ 
     bdclass=hasposkervec(imat1, nlen, mlen, 1);//strict
     if(bdclass==-1 && hasposimvec(imat1, nlen, mlen))
       bdclass=0;//definitely unbounded
@@ -7604,7 +7597,13 @@ int analysereacs(const char fname[], int q, bool htmlswitch, bool statswitch){
     else
       fprintf(stdout, "%s (each stoichiometry class contains at least one equilibrium).\n\n", bddclass);
 
- 
+    if(totsiphons==1 && bdclass==1 && persistflag){ // full set is a siphon, but corresponds to trivial stoichiometry class
+      PC1=2;
+      //fprintf(stdout, "The only boundary equilibrium of the system is the trivial one. The system is %s. (The only %s is the set of all species and it is not critical.)\n\n", structpers, siphonstr);
+    }
+
+
+
     //count the siphons
     if(statswitch && !totsiphons)
       fprintf(stdout, "SIPH0\n");
@@ -7613,7 +7612,7 @@ int analysereacs(const char fname[], int q, bool htmlswitch, bool statswitch){
 	if(!zeroinitial)//zero is an equilibrium
 	  fprintf(stdout, "The only equilibrium of the system is a trivial one (the system has no siphons, and no positive equilibria).\n\n");
 	else
-	  fprintf(stdout, "The system has no equilibria (the system has no siphons, no positive equilibria, and zero is not an equilbrium).\n\n");
+	  fprintf(stdout, "The system has no equilibria (the system has no siphons, no positive equilibria, and zero is not an equilibrium).\n\n");
       }
       /* else if(notallbd==-1 && !totsiphons){//shouldn't execute */
       /* 	if(!zeroinitial)//zero is an equilibrium */
@@ -7622,52 +7621,166 @@ int analysereacs(const char fname[], int q, bool htmlswitch, bool statswitch){
       /* 	  fprintf(stdout, "The system appears to have no equilibria.\n\n"); */
       /* } */
       else if(!notallbd)
-	fprintf(stdout, "The system has no positive equilibria.\n\n");
+	fprintf(stdout, "The system admits no positive equilibria, as the kernel of the (irreversible) stoichiometric matrix includes no positive vector.\n\n");
       /* else if(notallbd==-1)//shouldn't execute */
       /* 	fprintf(stdout, "All equilibria appear to be boundary equilibria.\n\n"); */
       else if(!totsiphons)
-	fprintf(stdout, "This system has no %s (the boundary includes no nontrivial equilbria).\n\n", siphonstr);
+	fprintf(stdout, "This system has no %s, and is %s (the boundary includes no equilibria).\n\n", siphonstr, structpers);
+      else if(PC1==2)
+	fprintf(stdout, "The only siphon is the set of all species and it is not critical: The system is %s, and the only boundary equilibrium of the system is the trivial one.\n\n", structpers);
+      else if(persistflag)
+	fprintf(stdout, "The system has %s, but is %s: no nontrivial stoichiometry class includes boundary equilibria.\n\n", siphonstr, structpers);
+      else
+	fprintf(stdout, "The system is not %s (it has critical siphons).\n\n", structpers);
     }
 
 
+
+
+    if(htmlswitch){
+      strcpy(BanajiPanteastr, "<a href=\"http://arxiv.org/abs/1309.6771\" target=\"_blank\">Banaji and Pantea, arxiv:1309.6771</a>");
+      strcpy(defstr, "<a href=\"http://reaction-networks.net/wiki/Deficiency#Deficiency\" target=\"_blank\">deficiency</a>");
+      strcpy(weakrstr, "<a href=\"http://reaction-networks.net/wiki/Weakly_reversible#Weak_reversibility\" target=\"_blank\">weakly reversible</a>");
+      strcpy(deftheor, "<a href=\"http://reaction-networks.net/wiki/Deficiency_theory\" target=\"_blank\">deficiency theory</a>");
+      strcpy(feinbergdef0, "Theorem 6.1.1 in Feinberg (<a href=\"http://www.sciencedirect.com/science/article/pii/0009250987800994\" target=\"_blank\">Chem. Eng. Sci. 42(10), 1987</a>)");
+      strcpy(panteadef0, "Theorem 6.3 and preceding remarks in Pantea (<a href=\"http://epubs.siam.org/doi/abs/10.1137/110840509\" target=\"_blank\">SIAM J. Math. Anal. 44(3), 2012</a>)");
+      strcpy(feinbergdef1, "Theorem 6.2.1 in Feinberg (<a href=\"http://www.sciencedirect.com/science/article/pii/0009250987800994\" target=\"_blank\">Chem. Eng. Sci. 42(10), 1987</a>)");
+      strcpy(ALSstr, "Theorem 2 in Angeli, De Leenheer and Sontag (<a href=\"http://link.springer.com/article/10.1007/s00285-009-0309-0\" target=\"_blank\">J. Math. Biol. 61(4), 2010</a>)");
+      strcpy(PMglob, "Theorem 2.2 in Donnell and Banaji (<a href=\"http://epubs.siam.org/doi/abs/10.1137/120898486\" target=\"_blank\">SIADS, 12(2), 2013</a>)");
+      strcpy(PMloc, "Theorem 2.1 in Donnell and Banaji (<a href=\"http://epubs.siam.org/doi/abs/10.1137/120898486\" target=\"_blank\">SIADS, 12(2), 2013</a>)");
+      strcpy(IC1maxpp, "<a title=\"IC1''\"href=\"http://reaction-networks.net/wiki/CoNtRol#Injectivity_condition_1.27.27_.28IC1.27.27.29\">IC1''</a> and <a title=\"PC1\" href=\"http://reaction-networks.net/wiki/CoNtRol#Persistence_condition_1_.28PC1.29\">PC1</a>");
+      strcpy(IC1maxp, "<a title=\"IC1''\" href=\"http://reaction-networks.net/wiki/CoNtRol#Injectivity_condition_1.27.27_.28IC1.27.27.29\">IC1''</a> and <a title=\"PC2\" href=\"http://reaction-networks.net/wiki/CoNtRol#Persistence_condition_2_.28PC2.29\">PC2</a>");
+      strcpy(IC1max, "<a title=\"IC1''\" href=\"http://reaction-networks.net/wiki/CoNtRol#Injectivity_condition_1.27.27_.28IC1.27.27.29\">IC1''</a>");
+      strcpy(IC2max, "<a title=\"IC2''\" href=\"http://reaction-networks.net/wiki/CoNtRol#Injectivity_condition_2.27.27_.28IC2.27.27.29\">IC2''</a>");
+      strcpy(IC2, "<a title=\"IC2\" href=\"http://reaction-networks.net/wiki/CoNtRol#Injectivity_condition_2_.28IC2.29\">IC2</a>");
+      strcpy(IC1pp, "<a title=\"IC1\" href=\"http://reaction-networks.net/wiki/CoNtRol#Injectivity_condition_1_.28IC1.29\">IC1</a> and <a title=\"PC1\" href=\"http://reaction-networks.net/wiki/CoNtRol#Persistence_condition_1_.28PC1.29\">PC1</a>");
+      strcpy(IC1p, "<a title=\"IC1\" href=\"http://reaction-networks.net/wiki/CoNtRol#Injectivity_condition_1_.28IC1.29\">IC1</a> and <a title=\"PC2\" href=\"http://reaction-networks.net/wiki/CoNtRol#Persistence_condition_2_.28PC2.29\">PC2</a>");
+      strcpy(IC1, "<a title=\"IC1\" href=\"http://reaction-networks.net/wiki/CoNtRol#Injectivity_condition_1_.28IC1.29\">IC1</a>");
+    }
+    else{
+      strcpy(BanajiPanteastr, "Banaji and Pantea, arxiv:1309.6771");
+      strcpy(defstr, "deficiency");
+      strcpy(weakrstr, "weakly reversible");
+      strcpy(deftheor, "deficiency theory");
+      strcpy(feinbergdef0, "Theorem 6.1.1 in Feinberg (Chem. Eng. Sci. 42(10), 1987)");
+      strcpy(panteadef0, "Theorem 6.3 and preceding remarks in Pantea (SIAM J. Math. Anal. 44(3), 2012)");
+      strcpy(feinbergdef1, "Theorem 6.2.1 in Feinberg (Chem. Eng. Sci. 42(10), 1987)");
+      strcpy(ALSstr, "Theorem 2 in Angeli, De Leenheer and Sontag (J. Math. Biol. 61(4), 2010)");
+      strcpy(PMglob, "Theorem 2.2 in Donnell and Banaji (SIADS, 12(2), 2013)");
+      strcpy(PMloc, "Theorem 2.1 in Donnell and Banaji (SIADS, 12(2), 2013)");
+      strcpy(IC1maxpp, "IC1'' and PC1");
+      strcpy(IC1maxp, "IC1'' and PC2");
+      strcpy(IC1max, "IC1''");
+      strcpy(IC2max, "IC2''");
+      strcpy(IC2, "IC2");
+      strcpy(IC1pp, "IC1 and PC1");
+      strcpy(IC1p, "IC1 and PC2");
+      strcpy(IC1, "IC1");
+    }
+
+    // Set some strings associated with IC1*
+    if(notallbd){ //IC1*, and positive equilibria possible
+      if(bdclass)
+	strcpy(max1_eq_per_class, "each stoichiometry class other than {0} is nontrivial and includes exactly one equilibrium. This equilibrium is positive"); //bounded classes and no nontrivial boundary equilibria (pp)
+      else
+	strcpy(max1_eq_per_class, "no stoichiometry class includes more than one equilibrium"); //unbounded classes and no nontrivial boundary equilibria (pp)
+
+      if(bdclass)
+	strcpy(max1_eq_per_nontriv_class, "each nontrivial stoichiometry class includes exactly one equilibrium, and this equilibrium is positive"); //bounded classes and structural persistence (p)
+      else
+	strcpy(max1_eq_per_nontriv_class, "no nontrivial stoichiometry class includes more than one equilibrium, and any equilibrium on a nontrivial stoichiometry class must be positive"); //unbounded classes and structural persistence (p)
+
+      strcpy(max1_pos_eq_per_class, "no stoichiometry class includes more than one positive equilibrium");
+      sprintf(failsIC1, "fails condition %s", IC1);
+    }
+    else{// no positive equilibria
+      if(zeroinitial)
+	strcpy(max1_eq_per_class, "the system has no equilibria");// (pp and 0 not an equilibrium)
+      else
+	strcpy(max1_eq_per_class, "the system has no nontrivial equilibria");// (pp)
+      strcpy(max1_eq_per_nontriv_class, "no nontrivial stoichiometry class includes any equilibria");// (p)
+      // non-structurally persistent systems
+      if(bdclass)
+	strcpy(max1_pos_eq_per_class, "the system has no positive equilibria (though it does have boundary equilibria)");
+      else if(zerounique)
+	strcpy(max1_pos_eq_per_class, "the system has no equilibria other than {0}");
+      else
+	strcpy(max1_pos_eq_per_class, "the system has no positive equilibria");
+      sprintf(failsIC1, "fails condition %s (but has no positive equilibria, so this does not imply multiple positive equilibria on a stoichiometry class)", IC1);
+    }
+
+    //The general strings
+
+
+    sprintf(IC1maxpstr, "General kinetics: %s. The system satisfies conditions %s", max1_eq_per_nontriv_class, IC1maxp);
+    sprintf(IC1maxpIC2maxstr, "General kinetics: %s. The fully open system is injective. The system satisfies conditions %s and %s", max1_eq_per_nontriv_class, IC1maxp, IC2max);
+    sprintf(MAIC1p, "Mass action kinetics: %s. The system satisfies conditions %s", max1_eq_per_nontriv_class, IC1p);
+    sprintf(MAIC1pIC2max, "Mass action kinetics: %s. The fully open system is injective. The system satisfies conditions %s and %s", max1_eq_per_nontriv_class, IC1p, IC2max);
+    sprintf(IC1maxppIC2maxstr, "General kinetics: %s. The fully open system is injective. The system satisfies conditions %s and %s", max1_eq_per_class, IC1maxpp, IC2max);
+    sprintf(IC1maxppstr, "General kinetics: %s. The system satisfies conditions %s", max1_eq_per_class, IC1maxpp);
+    sprintf(IC1maxstr, "General kinetics: %s. The system satisfies condition %s", max1_pos_eq_per_class, IC1max);
+    sprintf(IC2maxstr, "General kinetics: the system %s. It satisfies condition %s: the fully open system is injective", failsIC1, IC2max);
+    sprintf(IC1maxIC2maxstr, "General kinetics: %s, and the fully open system is injective. The system satisfies conditions %s and %s", max1_pos_eq_per_class, IC1max, IC2max);
+    sprintf(MAIC1, "Mass action kinetics: %s. The system satisfies condition %s", max1_pos_eq_per_class, IC1);
+    sprintf(MAIC1pp, "Mass action kinetics: %s. The system satisfies conditions %s", max1_eq_per_class, IC1pp);
+    sprintf(MAIC2max, "Mass action kinetics: the fully open system is injective. The system satisfies condition %s", IC2max);
+    sprintf(MAIC1IC2max, "Mass action kinetics: %s, and the fully open system is injective. The system satisfies conditions %s and %s", max1_pos_eq_per_class, IC1, IC2max);
+    sprintf(MAIC1ppIC2max, "Mass action kinetics: %s. The fully open system is injective. The system satisfies conditions %s and %s", max1_eq_per_class, IC1pp, IC2max);
+    sprintf(notSSD, "The system fails condition %s. There exists a choice of physical power-law kinetics and inflows and outflows such that the fully open system has multiple positive equilibria", IC2);
+    sprintf(notrWSD, "Mass action kinetics: the system %s", failsIC1);
+    sprintf(notWSD, "Mass action kinetics: there exists a choice of rate constants and inflows and outflows such that the system fails condition %s (the fully open system is noninjective)", IC2);
+    sprintf(notrcmpt, "The system %s", failsIC1);
+    sprintf(notrcmpt1, "The system %s. There exists a choice of physical power-law kinetics such that the system has multiple positive equilibria on some stoichiometry class", failsIC1);
+
+ 
+
     if(deficiency==0){
-      if(weakr){
+      if(weakr){//weakly reversible
 	if(totsiphons==0){
-	  fprintf(stdout, "This is a %s %s zero network. According to %s, with mass-action kinetics: each nontrivial stoichiometry class admits exactly one positive equilibrium, and this equilibrium is locally asymptotically stable relative to its stoichiometry class. In fact, as the system has no siphons, this equilibrium is globally asymptotically stable relative to its stoichiometry class (including the boundary).\n\n", weakrstr, defstr, feinbergdef0);
+	  fprintf(stdout, "This is a %s %s zero network. According to %s, with mass action kinetics: each nontrivial stoichiometry class admits exactly one positive equilibrium, and this equilibrium is locally asymptotically stable relative to its stoichiometry class. In fact, as the system has no siphons, this equilibrium is globally asymptotically stable relative to its stoichiometry class (including the boundary).\n\n", weakrstr, defstr, feinbergdef0);
 	}
 	else if(persistflag){
-	  fprintf(stdout, "This is a %s %s zero network. According to %s, with mass-action kinetics: each nontrivial stoichiometry class admits exactly one positive equilibrium, and this equilibrium is locally asymptotically stable relative to its stoichiometry class. In fact, as the system is structurally persistent, this equilibrium is globally asymptotically stable with respect to the relative interior of its stoichiometry class.\n\n", weakrstr, defstr, feinbergdef0);
+	  fprintf(stdout, "This is a %s %s zero network. According to %s, with mass action kinetics: each nontrivial stoichiometry class admits exactly one positive equilibrium, and this equilibrium is locally asymptotically stable relative to its stoichiometry class. In fact, as the system is structurally persistent, this equilibrium is globally asymptotically relative to its stoichiometry class (including the boundary).\n\n", weakrstr, defstr, feinbergdef0);
 	}
 	else if(Srank>3){
-	  fprintf(stdout, "This is a %s %s zero network. According to %s, with mass-action kinetics: each nontrivial stoichiometry class admits exactly one positive equilibrium, and this equilibrium is locally asymptotically stable relative to its stoichiometry class. There are no positive, nontrivial periodic orbits.\n\n", weakrstr, defstr, feinbergdef0);
+	  fprintf(stdout, "This is a %s %s zero network. According to %s, with mass action kinetics: each nontrivial stoichiometry class admits exactly one positive equilibrium, and this equilibrium is locally asymptotically stable relative to its stoichiometry class. There are no positive, nontrivial periodic orbits.\n\n", weakrstr, defstr, feinbergdef0);
 	}
 	else{
-	  fprintf(stdout, "This is a %s %s zero network with stoichiometric subspace of dimension %d. With mass-action kinetics: (i) According to %s, each nontrivial stoichiometry class admits exactly one positive equilibrium which attracts the relative interior of its stoichiometry class; (ii) By %s, this equilibrium is also locally asymptotically stable relative to its stoichiometry class. \n\n", weakrstr, defstr, Srank, panteadef0, feinbergdef0);
+	  fprintf(stdout, "This is a %s %s zero network with stoichiometric subspace of dimension %d. With mass action kinetics: (i) According to %s, each nontrivial stoichiometry class admits exactly one positive equilibrium which attracts the relative interior of its stoichiometry class; (ii) By %s, this equilibrium is also locally asymptotically stable relative to its stoichiometry class. \n\n", weakrstr, defstr, Srank, panteadef0, feinbergdef0);
 	}
 	strcat(notrWSD, ". By ");strcat(notrWSD, deftheor);
 	strcat(notrWSD, " however, with mass action kinetics, the system has precisely one positive equilibrium on each nontrivial stoichiometry class");
       }
       else if(zeronotterm){
-	SSPO=0;//no steady states of POs
+	SSPO=0;//no steady states or POs
 	fprintf(stdout, "This is a %s zero network and the zero complex does not lie in a terminal strong linkage class. According to %s, for general kinetics there are no equilibria at all and no nontrivial periodic orbits, including on the boundary.\n\n", defstr, feinbergdef0);
-	strcat(notrcmpt, ". By deficiency theory however, there are no equilibria at all and no nontrivial periodic orbits, including on the boundary (for general kinetics)");
-	strcat(notrWSD, ". By deficiency theory however, there are no equilibria at all and no nontrivial periodic orbits, including on the boundary (for general kinetics)");
+	strcat(notrcmpt, ". However, there are no equilibria at all and no nontrivial periodic orbits, including on the boundary (for general kinetics)");
+	strcat(notrWSD, ". However, there are no equilibria at all and no nontrivial periodic orbits, including on the boundary (for general kinetics)");
       }
       //https://reaction-networks.net/wiki/Reaction_graph#Deficiency
       else{
 	posSSPO=0;// no positive steady states or POs
 	fprintf(stdout, "The network has %s zero, but is not %s. According to %s, for general kinetics there are no positive equilibria or positive nontrivial periodic orbits.\n\n", defstr, weakrstr, feinbergdef0);
-	strcat(notrcmpt, ". By deficiency theory however, there are no positive equilibria at all (for general kinetics) - see ");
-	strcat(notrcmpt, feinbergdef0);
-	strcat(notrWSD, ". By deficiency theory however, there are no positive equilibria at all (for general kinetics) - see ");
-	strcat(notrWSD, feinbergdef0);
+	if(notallbd){//shouldn't execute!
+	  strcat(notrcmpt, ". However, there are no positive equilibria at all (for general kinetics) - see ");
+	  strcat(notrcmpt, feinbergdef0);
+	  strcat(notrWSD, ". However, there are no positive equilibria at all (for general kinetics) - see ");
+	  strcat(notrWSD, feinbergdef0);
+	}
       }
     }
     else if(def1flg){
       if(weakr){
 	fprintf(stdout, "This network is %s and satisfies the conditions of the deficiency one theorem. According to %s, for mass action kinetics, the system has precisely one positive equilibrium on each nontrivial stoichiometry class.\n\n", weakrstr, feinbergdef1);
 	strcat(notrWSD, ". By ");strcat(notrWSD, deftheor);
-	strcat(notrWSD, " however, with mass action kinetics, the system has precisely one positive equilibrium on each nontrivial stoichiometry class");
+	if(PC1 && bdclass)
+	  strcat(notrWSD, " however, with mass action kinetics, each stoichiometry class other than {0} includes a unique equilibrium, and this equilibrium is positive");
+	else if(PC1)
+	  strcat(notrWSD, " however, with mass action kinetics, each stoichiometry class includes a unique equilibrium, and this equilibrium is positive");
+	else if(persistflag)
+	  strcat(notrWSD, " however, with mass action kinetics, each nontrivial stoichiometry class includes a unique equilibrium, and this equilibrium is positive");
+	else
+	  strcat(notrWSD, " however, with mass action kinetics, the system has precisely one positive equilibrium on each nontrivial stoichiometry class");
 
       }
       else{
@@ -7745,7 +7858,7 @@ int analysereacs(const char fname[], int q, bool htmlswitch, bool statswitch){
     if(allminsiphons)
       free((char *) allminsiphons);
 
-    if(allgood && allrev){ // no reactants on both sides and all reversible
+    if(allgood && allrev){ // simply reversible CRN - no reactants on both sides and all reversible
       imat1a=redmat(imat1, nlen, mlen, &mlena);//remove redundant cols
       csdflag=isCSD(imat1a, nlen, mlena, q);
       if(csdflag!=2){
@@ -7754,45 +7867,45 @@ int analysereacs(const char fname[], int q, bool htmlswitch, bool statswitch){
 	  wsdflag=doubleisWSD(imat1a, nlen, mlena, q);
       }
       if(csdflag==2){//CSD
-	if(totsiphons==0)
-	  fprintf(stdout, "%s. (In fact, this reaction structure satisfies conditions IC1++ and IC3 with *any stoichiometries*.)\n", IC1pp3str);
+	if(PC1)// no siphons, or bdd classes and only siphon face is {0}
+	  fprintf(stdout, "%s. (In fact, this reaction structure satisfies conditions IC1'' and IC2'' with *any stoichiometries*.)\n", IC1maxppIC2maxstr);
 	else if(persistflag)
-	  fprintf(stdout, "%s. (In fact, this reaction structure satisfies conditions IC1+ and IC3 with *any stoichiometries*.)\n", IC1p3str);
+	  fprintf(stdout, "%s. (In fact, this reaction structure satisfies conditions IC1'' and IC2'' with *any stoichiometries*.)\n", IC1maxpIC2maxstr);
 	else
-	  fprintf(stdout, "%s. (In fact, this reaction structure satisfies conditions IC1 and IC3 with *any stoichiometries*.)\n", IC13str);
+	  fprintf(stdout, "%s. (In fact, this reaction structure satisfies conditions IC1'' and IC2'' with *any stoichiometries*.)\n", IC1maxIC2maxstr);
       }
       else if(ssdflag){
 	if(ssdflag==2 && csdflag==1){//r-CSD but not CSD
-	  if(totsiphons==0)
-	    fprintf(stdout, "%s. (In fact, this reaction structure satisfies conditions IC1++ with *any stoichiometries*.)\n", IC1pp3str);
+	  if(PC1)// no siphons, or bdd classes and only siphon face is {0}
+	    fprintf(stdout, "%s. (In fact, this reaction structure satisfies conditions IC1'' with *any stoichiometries*.)\n", IC1maxppIC2maxstr);
 	  else if(persistflag)
-	    fprintf(stdout, "%s. (In fact, this reaction structure satisfies conditions IC1+ with *any stoichiometries*.)\n", IC1p3str);
+	    fprintf(stdout, "%s. (In fact, this reaction structure satisfies conditions IC1'' with *any stoichiometries*.)\n", IC1maxpIC2maxstr);
 	  else
-	    fprintf(stdout, "%s. (In fact, this reaction structure satisfies conditions IC1 with *any stoichiometries*.)\n", IC13str);
+	    fprintf(stdout, "%s. (In fact, this reaction structure satisfies conditions IC1'' with *any stoichiometries*.)\n", IC1maxIC2maxstr);
 	}
 	else if(ssdflag==2){//SSD but not CSD
-	  if(totsiphons==0)
-	    fprintf(stdout, "%s.\n", IC1pp3str);
+	  if(PC1)// no siphons, or bdd classes and only siphon face is {0}
+	    fprintf(stdout, "%s.\n", IC1maxppIC2maxstr);
 	  else if(persistflag)
-	    fprintf(stdout, "%s.\n", IC1p3str);
+	    fprintf(stdout, "%s.\n", IC1maxpIC2maxstr);
 	  else
-	    fprintf(stdout, "%s.\n", IC13str);
+	    fprintf(stdout, "%s.\n", IC1maxIC2maxstr);
 	}
 	else if(csdflag==1){//r-CSD (and r-SSD) but not CSD or SSD
-	  if(totsiphons==0)
-	    fprintf(stdout, "%s. (In fact, this reaction structure satisfies condition IC1++ with *any stoichiometries*.) %s.\n", IC1ppstr, notSSD);
+	  if(PC1)// no siphons, or bdd classes and only siphon face is {0}
+	    fprintf(stdout, "%s. (In fact, this reaction structure satisfies condition IC1'' with *any stoichiometries*.) %s.\n", IC1maxppstr, notSSD);
 	  else if(persistflag)
-	    fprintf(stdout, "%s. (In fact, this reaction structure satisfies condition IC1+ with *any stoichiometries*.) %s.\n", IC1pstr, notSSD);
+	    fprintf(stdout, "%s. (In fact, this reaction structure satisfies condition IC1'' with *any stoichiometries*.) %s.\n", IC1maxpstr, notSSD);
 	  else
-	    fprintf(stdout, "%s. (In fact, this reaction structure satisfies condition IC1 with *any stoichiometries*.) %s.\n", IC1str, notSSD);
+	    fprintf(stdout, "%s. (In fact, this reaction structure satisfies condition IC1'' with *any stoichiometries*.) %s.\n", IC1maxstr, notSSD);
 	}
 	else{//r-SSD (but not SSD)
-	  if(totsiphons==0)
-	    fprintf(stdout, "%s. %s.\n", IC1ppstr, notSSD);
+	  if(PC1)// no siphons, or bdd classes and only siphon face is {0}
+	    fprintf(stdout, "%s. %s.\n", IC1maxppstr, notSSD);
 	  else if(persistflag)
-	    fprintf(stdout, "%s. %s.\n", IC1pstr, notSSD);
+	    fprintf(stdout, "%s. %s.\n", IC1maxpstr, notSSD);
 	  else
-	    fprintf(stdout, "%s. %s.\n", IC1str, notSSD);
+	    fprintf(stdout, "%s. %s.\n", IC1maxstr, notSSD);
 	}
       }
       else{// neither SSD nor r-SSD (as reversible, nonzero vector in ker(Gamma_ir) is automatic)
@@ -7801,30 +7914,33 @@ int analysereacs(const char fname[], int q, bool htmlswitch, bool statswitch){
 
       if(csdflag!=2 && ssdflag!=2){ //Not strongest conclusions: check mass action
 	if(wsdflag==3){ //WSD and r-strongly WSD
-	  if(totsiphons==0)
-	    fprintf(stdout, "%s.\n", MAIC2ppIC3);
+	  if(PC1)// no siphons, or bdd classes and only siphon face is {0}
+	    fprintf(stdout, "%s.\n", MAIC1ppIC2max);
 	  else if(persistflag)
-	    fprintf(stdout, "%s.\n", MAIC2pIC3);
+	    fprintf(stdout, "%s.\n", MAIC1pIC2max);
 	  else
-	    fprintf(stdout, "%s.\n", MAIC2IC3);
+	    fprintf(stdout, "%s.\n", MAIC1IC2max);
 	}
 	else if(wsdflag==2) //WSD but not r-strongly WSD
-	  fprintf(stdout, "%s.\n%s.\n", MAIC3, notrWSD);
+	  fprintf(stdout, "%s.\n%s.\n", MAIC2max, notrWSD);
 	else if(wsdflag==1){ //r-strongly WSD but not WSD
-	  if(totsiphons==0)
-	    fprintf(stdout, "%s.\n%s.\n", MAIC2pp, notWSD);
+	  if(PC1)// no siphons, or bdd classes and only siphon face is {0}
+	    fprintf(stdout, "%s.\n%s.\n", MAIC1pp, notWSD);
 	  else if(persistflag)
-	    fprintf(stdout, "%s.\n%s.\n", MAIC2p, notWSD);
+	    fprintf(stdout, "%s.\n%s.\n", MAIC1p, notWSD);
 	  else
-	    fprintf(stdout, "%s.\n%s.\n", MAIC2, notWSD);
+	    fprintf(stdout, "%s.\n%s.\n", MAIC1, notWSD);
 	}
       }
       free_imatrix(imat1a, 0, nlen-1, 0, mlena-1);
       if(csdflag==0 && ssdflag==0 && wsdflag==0)
 	fprintf(stdout, "%s.\n%s.\n", notrWSD,notWSD);
-    }//finished with the simply reversible case
-
-    if(!allgood || (!allrev && csdflag==0 && ssdflag==0 && wsdflag==0)){
+    }
+    //finished with the simply reversible case
+    //Beginning the general case: some species on both sides, 
+    //and/or some irreversible reactions.
+    else{
+      //if(!allgood || (!allrev && csdflag==0 && ssdflag==0 && wsdflag==0)){
   
       /* flag = 3 means the matrices are compatible and r-strongly compatible */
       /* flag = 2 means the matrices are compatible but not r-strongly compatible */
@@ -7832,19 +7948,19 @@ int analysereacs(const char fname[], int q, bool htmlswitch, bool statswitch){
       /* flag = 0 means the matrices are none of the above */
 
       compatflag=arecompat(imat1, imat2, nlen, mlen, q);
-      if(compatflag==3){//matrix and sign-pattern are compatible and r-strongly compatible
+      if(compatflag==3){//stoichiometric matrix and rate-pattern are compatible and r-strongly compatible -- accordance and concordance
 	if(statswitch)
-	  fprintf(stdout, "NR***\nGKIC1\nGKIC3\nMAIC2\nMAIC3\n");//for batch checking
-	if(totsiphons==0)
-	  fprintf(stdout, "%s.\n", IC1pp3str);
+	  fprintf(stdout, "NR***\nGKIC1\nGKIC2max\nMAIC1\nMAIC2max\n");//for batch checking
+	if(PC1)// no siphons, or bdd classes and only siphon face is {0}
+	  fprintf(stdout, "%s.\n", IC1maxppIC2maxstr);
 	else if(persistflag)
-	  fprintf(stdout, "%s.\n", IC1p3str);
+	  fprintf(stdout, "%s.\n", IC1maxpIC2maxstr);
 	else
-	  fprintf(stdout, "%s.\n", IC13str);
+	  fprintf(stdout, "%s.\n", IC1maxIC2maxstr);
       }
-      else if(compatflag==2){ //matrix and sign-pattern are compatible but not r-strongly compatible
+      else if(compatflag==2){ //stoichiometric matrix and rate-pattern are compatible but not r-strongly compatible -- accordance but not concordance (implying structural discordance)
 	if(statswitch)
-	  fprintf(stdout, "NR***\nGKIC3\nMAIC3\n");//for batch checking
+	  fprintf(stdout, "NR***\nGKIC2max\nMAIC2max\n");//for batch checking
 	if(SSPO && posSSPO && notallbd)//possibly interior equilibria
 	  tmpstr=notrcmpt1;
 	else
@@ -7853,44 +7969,44 @@ int analysereacs(const char fname[], int q, bool htmlswitch, bool statswitch){
 	MAcompatflag=mats_compat(imat3, imat4, nlen, cols3, q);
 	if(MAcompatflag==3 || MAcompatflag==1 || MAcompatflag==-1){// (stoich and exp) matrices are r-strongly compatible or r-strongly negatively compatible
 	  if(statswitch)
-	    fprintf(stdout, "MAIC2\n");//for batch checking
-	  if(totsiphons==0)
-	    fprintf(stdout, "%s.\n%s.\n%s.\n", IC3str, tmpstr, MAIC2pp);
+	    fprintf(stdout, "MAIC1\n");//for batch checking
+	  if(PC1)// no siphons, or bdd classes and only siphon face is {0}
+	    fprintf(stdout, "%s.\n%s.\n%s.\n", IC2maxstr, tmpstr, MAIC1pp);
 	  else if(persistflag)
-	    fprintf(stdout, "%s.\n%s.\n%s.\n", IC3str, tmpstr, MAIC2p);
+	    fprintf(stdout, "%s.\n%s.\n%s.\n", IC2maxstr, tmpstr, MAIC1p);
 	  else
-	    fprintf(stdout, "%s.\n%s.\n%s.\n", IC3str, tmpstr, MAIC2);
+	    fprintf(stdout, "%s.\n%s.\n%s.\n", IC2maxstr, tmpstr, MAIC1);
 	}
 	else{
 	  if(SSPO && posSSPO && notallbd)//possibly interior equilibria
-	    fprintf(stdout, "%s.\n%s.\n%s.\n", IC3str,notrWSD,notrcmpt1);
+	    fprintf(stdout, "%s.\n%s.\n%s.\n", IC2maxstr,notrWSD,notrcmpt1);
 	  else
-	    fprintf(stdout, "%s.\n%s.\n", IC3str,notrWSD);
+	    fprintf(stdout, "%s.\n%s.\n", IC2maxstr,notrWSD);
 	}
       }
-      else if(compatflag==1 || compatflag==-1){//  matrix and sign-pattern are r-strongly compatible or r-strongly negatively compatible but are not compatible
+      else if(compatflag==1 || compatflag==-1){//  matrix and sign-pattern are r-strongly compatible or r-strongly negatively compatible but are not compatible -- concordance but not accordance
 	if(statswitch)
-	  fprintf(stdout, "NR***\nGKIC1\nMAIC2\n");//for batch checking
+	  fprintf(stdout, "NR***\nGKIC1\nMAIC1\n");//for batch checking
 	MAcompatflag=mats_compat(imat3, imat4, nlen, cols3, q);
 	if(MAcompatflag==3 || MAcompatflag==2){// (stoich and exp) matrices are compatible
 	  if(statswitch)
-	    fprintf(stdout, "MAIC3\n");//for batch checking
-	  if(totsiphons==0)
-	    fprintf(stdout, "%s.\n%s.\n%s.\n", IC1ppstr, notSSD, MAIC3);
+	    fprintf(stdout, "MAIC2max\n");//for batch checking
+	  if(PC1)// no siphons, or bdd classes and only siphon face is {0}
+	    fprintf(stdout, "%s.\n%s.\n%s.\n", IC1maxppstr, notSSD, MAIC2max);
 	  else if(persistflag)
-	    fprintf(stdout, "%s.\n%s.\n%s.\n", IC1pstr, notSSD, MAIC3);
+	    fprintf(stdout, "%s.\n%s.\n%s.\n", IC1maxpstr, notSSD, MAIC2max);
 	  else
-	    fprintf(stdout, "%s.\n%s.\n%s.\n", IC1str, notSSD, MAIC3);
+	    fprintf(stdout, "%s.\n%s.\n%s.\n", IC1maxstr, notSSD, MAIC2max);
 	}
 	else//not compatible
-	  if(totsiphons==0)
-	    fprintf(stdout, "%s.\n%s.\n", IC1ppstr, notWSD);
+	  if(PC1)// no siphons, or bdd classes and only siphon face is {0}
+	    fprintf(stdout, "%s.\n%s.\n%s.\n", IC1maxppstr, notSSD, notWSD);
 	  else if(persistflag)
-	    fprintf(stdout, "%s.\n%s.\n", IC1pstr, notWSD);
+	    fprintf(stdout, "%s.\n%s.\n%s.\n", IC1maxpstr, notSSD, notWSD);
 	  else
-	    fprintf(stdout, "%s.\n%s.\n", IC1str, notWSD);
+	    fprintf(stdout, "%s.\n%s.\n%s.\n", IC1maxstr, notSSD, notWSD);
       }
-      else{//check MA
+      else{//neither concordance nor accordance. check MA
 
 	if(SSPO && posSSPO && notallbd)//possibly interior equilibria
 	  tmpstr=notrcmpt1;
@@ -7898,39 +8014,39 @@ int analysereacs(const char fname[], int q, bool htmlswitch, bool statswitch){
 	  tmpstr=notrcmpt;
 
 	MAcompatflag=mats_compat(imat3, imat4, nlen, cols3, q);
-	if(MAcompatflag==3){// (stoich and exp) matrices are compatible and r-strongly compatible
+	if(MAcompatflag==3){// (stoich and exp) matrices are compatible and r-strongly compatible: semiconcordance and semiaccordance
 	  if(statswitch)
-	    fprintf(stdout, "NR***\nMAIC2\nMAIC3\n");//for batch checking
-	  if(totsiphons==0)
-	    fprintf(stdout, "%s.\n%s.\n%s.\n", notSSD, tmpstr, MAIC2ppIC3);
+	    fprintf(stdout, "NR***\nMAIC1\nMAIC2max\n");//for batch checking
+	  if(PC1)// no siphons, or bdd classes and only siphon face is {0}
+	    fprintf(stdout, "%s.\n%s.\n%s.\n", notSSD, tmpstr, MAIC1ppIC2max);
 	  else if(persistflag)
-	    fprintf(stdout, "%s.\n%s.\n%s.\n", notSSD, tmpstr, MAIC2pIC3);
+	    fprintf(stdout, "%s.\n%s.\n%s.\n", notSSD, tmpstr, MAIC1pIC2max);
 	  else
-	    fprintf(stdout, "%s.\n%s.\n%s.\n", notSSD, tmpstr, MAIC2IC3);
+	    fprintf(stdout, "%s.\n%s.\n%s.\n", notSSD, tmpstr, MAIC1IC2max);
 	}
-	else if(MAcompatflag==2){ //(stoich and exp) matrices are compatible but not r-strongly compatible or r-strongly negatively compatible
+	else if(MAcompatflag==2){ //(stoich and exp) matrices are compatible but not r-strongly compatible or r-strongly negatively compatible: semiaccordance, but not semiconcordance (network is not normal)
 	  if(statswitch)
-	    fprintf(stdout, "NR***\nMAIC3\n");//for batch checking
-	  fprintf(stdout, "%s.\n%s.\n%s.\n%s.\n", notSSD, tmpstr, MAIC3, notrWSD);
+	    fprintf(stdout, "NR***\nMAIC2max\n");//for batch checking
+	  fprintf(stdout, "%s.\n%s.\n%s.\n%s.\n", notSSD, tmpstr, MAIC2max, notrWSD);
 	}
-	else if(MAcompatflag==1 || MAcompatflag==-1){ //(stoich and exp) matrices are r-strongly compatible or r-strongly negatively compatible, but not compatible
+	else if(MAcompatflag==1 || MAcompatflag==-1){ //(stoich and exp) matrices are r-strongly compatible or r-strongly negatively compatible, but not compatible: semiconcordance, but not semiaccordance
 	  if(statswitch)
-	    fprintf(stdout, "NR***\nMAIC2\n");//for batch checking
-	  if(totsiphons==0)
-	    fprintf(stdout, "%s.\n%s.\n%s.\n", tmpstr, MAIC2pp, notWSD);
+	    fprintf(stdout, "NR***\nMAIC1\n");//for batch checking
+	  if(PC1)// no siphons, or bdd classes and only siphon face is {0}
+	    fprintf(stdout, "%s.\n%s.\n%s.\n%s.\n", tmpstr, notSSD, MAIC1pp, notWSD);
 	  else if(persistflag)
-	    fprintf(stdout, "%s.\n%s.\n%s.\n", tmpstr, MAIC2p, notWSD);
+	    fprintf(stdout, "%s.\n%s.\n%s.\n%s.\n", tmpstr, notSSD, MAIC1p, notWSD);
 	  else
-	    fprintf(stdout, "%s.\n%s.\n%s.\n", tmpstr, MAIC2, notWSD);
+	    fprintf(stdout, "%s.\n%s.\n%s.\n%s.\n", tmpstr, notSSD, MAIC1, notWSD);
 	}
 	else{
 	  if(statswitch)
 	    fprintf(stdout, "NR***\n");//for batch checking
 	  //	allminorsigns(imat3, imat4, nlen, cols3, q);
 	  if(SSPO && posSSPO && notallbd)//possibly interior equilibria
-	    fprintf(stdout, "%s.\n%s.\n%s.\n", notrcmpt1, notrWSD, notWSD);
+	    fprintf(stdout, "%s.\n%s.\n%s.\n%s.\n", notrcmpt1, notSSD, notrWSD, notWSD);
 	  else
-	    fprintf(stdout, "%s.\n%s.\n", notrWSD, notWSD);
+	    fprintf(stdout, "%s.\n%s.\n%s.\n", notSSD, notrWSD, notWSD);
 	}
       }
     }
@@ -7960,13 +8076,13 @@ int analysereacs(const char fname[], int q, bool htmlswitch, bool statswitch){
 
     /* compatflag=arecompat(imat1, imat2, nlen, mlen, q); */
     /* if(compatflag==3) */
-    /*   fprintf(stdout, "%s.\n", IC13str); */
+    /*   fprintf(stdout, "%s.\n", IC1maxIC2maxstr); */
     /* else if(compatflag==2) */
-    /*   fprintf(stdout, "%s.\n", IC3str); */
+    /*   fprintf(stdout, "%s.\n", IC2maxstr); */
     /* else if(compatflag==1) */
-    /*   fprintf(stdout, "%s\n", IC1str); */
+    /*   fprintf(stdout, "%s\n", IC1maxstr); */
     /* else */
-    /*   fprintf(stdout, "No injectivity claims seem possible for mass-action kinetics or for general kinetics.\n"); */
+    /*   fprintf(stdout, "No injectivity claims seem possible for mass action kinetics or for general kinetics.\n"); */
     /* free_imatrix(imat1, 0, nlen-1, 0, mlen-1); */
     /* free_imatrix(imat2, 0, nlen-1, 0, mlen-1); */
   }
@@ -8000,25 +8116,25 @@ int analysereacs(const char fname[], int q, bool htmlswitch, bool statswitch){
     /* 	wsdflag=doubleisWSD(imat1a, nlen, mlena, q); */
     /* } */
     /* if(csdflag==2) */
-    /*   fprintf(stdout, "%s. (In fact, this reaction structure satisfies conditions IC1 and IC3 with *any stoichiometries*.)\n", IC13str); */
+    /*   fprintf(stdout, "%s. (In fact, this reaction structure satisfies conditions IC1 and IC3 with *any stoichiometries*.)\n", IC1maxIC2maxstr); */
     /* else if(ssdflag){ */
     /*   if(ssdflag==2 && csdflag==1) */
-    /* 	fprintf(stdout, "%s. (In fact, this reaction structure satisfies condition IC1, but not necessarily IC3, with *any stoichiometries*.)\n", IC13str); */
+    /* 	fprintf(stdout, "%s. (In fact, this reaction structure satisfies condition IC1, but not necessarily IC3, with *any stoichiometries*.)\n", IC1maxIC2maxstr); */
     /*   else if(ssdflag==2) */
-    /* 	fprintf(stdout, "%s.\n", IC13str); */
+    /* 	fprintf(stdout, "%s.\n", IC1maxIC2maxstr); */
     /*   else if(csdflag==1) */
-    /* 	fprintf(stdout, "%s. (In fact, this reaction structure satisfies condition IC1 with *any stoichiometries*.)\n", IC1str); */
+    /* 	fprintf(stdout, "%s. (In fact, this reaction structure satisfies condition IC1 with *any stoichiometries*.)\n", IC1maxstr); */
     /*   else */
-    /* 	fprintf(stdout, "%s\n", IC1str); */
+    /* 	fprintf(stdout, "%s\n", IC1maxstr); */
     /* } */
 
     /* if(csdflag!=2 && ssdflag!=2){ // check mass action */
     /*   if(wsdflag==3) */
-    /* 	fprintf(stdout, "%s.\n", MAIC2IC3); */
+    /* 	fprintf(stdout, "%s.\n", MAIC1IC2max); */
     /*   else if(wsdflag==2) */
-    /* 	fprintf(stdout, "%s.\n", MAIC3); */
+    /* 	fprintf(stdout, "%s.\n", MAIC2max); */
     /*   else if(wsdflag==1) */
-    /* 	fprintf(stdout, "%s.\n", MAIC2); */
+    /* 	fprintf(stdout, "%s.\n", MAIC1); */
     /* } */
 
     /* if(csdflag==0 && ssdflag==0 && wsdflag==0) */
