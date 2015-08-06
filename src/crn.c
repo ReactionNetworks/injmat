@@ -7416,18 +7416,18 @@ int analysereacs(const char fname[], int q, bool htmlswitch, bool statswitch){
   int wsdflag=0;
   int compatflag=0;
   int MAcompatflag=0;
-  char IC1maxpp[150];
-  char IC1maxp[150];
+  char IC1maxpp[250];
+  char IC1maxp[250];
   char IC1max[150];
   char IC1maxstr[300];
-  char IC1maxppstr[300];
-  char IC1maxpstr[300];
+  char IC1maxppstr[500];
+  char IC1maxpstr[500];
   char IC2[150];
   char IC2max[150];
   char IC2maxstr[300];
   char IC1maxIC2maxstr[500];
-  char IC1maxppIC2maxstr[500];
-  char IC1maxpIC2maxstr[500];
+  char IC1maxppIC2maxstr[700];
+  char IC1maxpIC2maxstr[700];
   char failsIC1[200];
   char IC1[150];
   char IC1p[150];
@@ -7437,8 +7437,8 @@ int analysereacs(const char fname[], int q, bool htmlswitch, bool statswitch){
   char MAIC1p[500];
   char MAIC1pp[500];
   char MAIC1IC2max[500];
-  char MAIC1pIC2max[500];
-  char MAIC1ppIC2max[500];
+  char MAIC1pIC2max[700];
+  char MAIC1ppIC2max[700];
   char notSSD[500];
   char notWSD[500];
   char notrWSD[500];
@@ -7630,8 +7630,8 @@ int analysereacs(const char fname[], int q, bool htmlswitch, bool statswitch){
 	fprintf(stdout, "The only siphon is the set of all species and it is not critical: The system is %s, and the only boundary equilibrium of the system is the trivial one.\n\n", structpers);
       else if(persistflag)
 	fprintf(stdout, "The system has %s, but is %s: no nontrivial stoichiometry class includes boundary equilibria.\n\n", siphonstr, structpers);
-      else
-	fprintf(stdout, "The system is not %s (it has critical siphons).\n\n", structpers);
+      /* else */
+      /* 	fprintf(stdout, "The system is not %s (it has critical siphons).\n\n", structpers); */
     }
 
 
