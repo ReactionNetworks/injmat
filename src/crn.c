@@ -2513,7 +2513,7 @@ void simppair1(int **imat, matrix imat1, int n, int m, int ***imat2, matrix *ima
   fprintf(stderr, "numrows = %d --> %d\n", n, (*n1));
 
   if((*n1)==0 || (*m1)==0){ // one matrix is a matrix of zeros
-    (*imat2)=NULL;(*imat3)=NULL;
+    (*imat2)=NULL;(imat3)=NULL;
     free((FREE_ARG) (emptyrows));free((FREE_ARG) (emptycols));
     return;
   }
@@ -4032,11 +4032,11 @@ void check_coeff_fn(){
   cout << "coeff = " << coeff(trial, xc, yc, k, trm) << endl;
   //48*v7*v4*v2*v11^2*v5^4*v9^2*v6^2*v3^2
   trm.remove_all();
-  trm = v7,v4,v2,v11,v11,v5,v5,v5,v5,v9,v9,v6,v6,v3,v3; // expect 48
+  trm = {v7,v4,v2,v11,v11,v5,v5,v5,v5,v9,v9,v6,v6,v3,v3}; // expect 48
   cout << "coeff = " << coeff(trial, xc, yc, k, trm) << endl;
   //v8^2*v5^2*v1^3*v9*v3*v10*v7^2*v4*v2*v11
   trm.remove_all();
-  trm = v8,v8,v5,v5,v1,v1,v1,v9,v3,v10,v7,v7,v4,v2,v11; // expect 267
+  trm = {v8,v8,v5,v5,v1,v1,v1,v9,v3,v10,v7,v7,v4,v2,v11}; // expect 267
   cout << "coeff = " << coeff(trial, xc, yc, k, trm) << endl;
   free((char *) xc);free((char *) yc);
 
